@@ -1,0 +1,25 @@
+{
+  "topic": "robust planning for autonomous browser agents",
+  "missionType": "new_project",
+  "budget": {
+    "maxRounds": 3,
+    "wallClockMinutes": 120
+  },
+  "metrics": [
+    "success_rate",
+    "latency"
+  ],
+  "modelConnection": {
+    "provider": "anthropic_oauth",
+    "model": "claude-sonnet-4-6",
+    "taskModels": {
+      "research": "claude-sonnet-4-6",
+      "summary": "claude-opus-4-6"
+    }
+  },
+  "keywords": [
+    "browser agents",
+    "planning",
+    "robustness"
+  ]
+}

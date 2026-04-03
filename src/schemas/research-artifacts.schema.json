@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClawLabResearchArtifacts",
+  "type": "object",
+  "definitions": {
+    "ResearchModelConnection": {
+      "type": "object",
+      "required": ["provider", "taskModels"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "stub",
+            "anthropic_oauth",
+            "anthropic_api_key",
+            "openai_compatible"
+          ]
+        },
+        "displayName": { "type": "string" },
+        "model": { "type": "string" },
+        "taskModels": {
+          "type": "object",
+          "properties": {
+            "research": { "type": "string" },
+            "code": { "type": "string" },
+            "report": { "type": "string" },
+            "summary": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "baseUrl": { "type": "string" },
+        "apiKeyEnvVar": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "MissionArtifact": {
+      "type": "object",
+      "required": [
+        "id",
+        "missionType",
+        "topic",
+        "title",
+        "objective",
+        "currentMetricsSnapshot",
+        "preferredFocusFiles",
+        "constraints",
+        "metrics",
+        "successCriteria",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "missionType": {
+          "type": "string",
+          "enum": ["new_project", "existing_project_improvement"]
+        },
+        "topic": { "type": "string" },
+        "title": { "type": "string" },
+        "objective": { "type": "string" },
+        "problemStatement": { "type": "string" },
+        "baselineSummary": { "type": "string" },
+        "improvementGoal": { "type": "string" },
+        "targetMetric": { "type": "string" },
+        "currentMetricsSnapshot": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "preferredFocusFiles": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "constraints": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "repoPath": { "type": "string" },
+        "repoUrl": { "type": "string" },
+        "metrics": { "type": "array", "items": { "type": "string" } },
+        "successCriteria": { "type": "array", "items": { "type": "object" } },
+        "modelConnection": {
+          "$ref": "#/definitions/ResearchModelConnection"
+        },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "GPUAllocation": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["auto", "manual"] },
+        "visibleDevices": { "type": "string" },
+        "requiredGpuCount": { "type": "integer" },
+        "requiredMinMemoryGb": { "type": "number" }
+      }
+    },
+    "ExecutionTarget": {
+      "type": "object",
+      "required": ["type", "cwd"],
+      "properties": {
+        "type": { "type": "string", "enum": ["local", "ssh"] },
+        "machineId": { "type": "string" },
+        "cwd": { "type": "string" },
+        "gpuAllocation": { "$ref": "#/definitions/GPUAllocation" }
+      }
+    },
+    "Hypothesis": {
+      "type": "object",
+      "required": [
+        "id",
+        "description",
+        "whyNow",
+        "expectedGain",
+        "risk",
+        "minimalTest",
+        "confidence",
+        "branchKind",
+        "status"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "description": { "type": "string" },
+        "whyNow": { "type": "string" },
+        "evidenceLinks": { "type": "array", "items": { "type": "string" } },
+        "expectedGain": { "type": "string" },
+        "risk": { "type": "string" },
+        "minimalTest": { "type": "string" },
+        "confidence": { "type": "number" },
+        "branchKind": {
+          "type": "string",
+          "enum": ["mainline", "exploration", "repair"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["candidate", "selected", "running", "validated", "failed", "archived"]
+        }
+      }
+    },
+    "ExperimentRun": {
+      "type": "object",
+      "required": [
+        "id",
+        "experimentPlanId",
+        "executionTarget",
+        "startedAt",
+        "command",
+        "status",
+        "metrics",
+        "summary"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "experimentPlanId": { "type": "string" },
+        "executionTarget": { "$ref": "#/definitions/ExecutionTarget" },
+        "startedAt": { "type": "string" },
+        "endedAt": { "type": "string" },
+        "command": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["queued", "running", "done", "failed", "cancelled"]
+        },
+        "logPath": { "type": "string" },
+        "artifactPaths": { "type": "array", "items": { "type": "string" } },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "failureClass": {
+          "type": "string",
+          "enum": [
+            "syntax_import",
+            "dependency_config",
+            "data_issue",
+            "oom_resource",
+            "metric_bug",
+            "instability",
+            "regression",
+            "inconclusive"
+          ]
+        },
+        "summary": { "type": "string" }
+      }
+    }
+  }
+}

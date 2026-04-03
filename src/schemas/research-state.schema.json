@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ResearchSessionState",
+  "type": "object",
+  "required": [
+    "sessionId",
+    "missionId",
+    "topic",
+    "repoPath",
+    "topLevelState",
+    "runtimeMode",
+    "permissionMode",
+    "currentRound",
+    "budgetUsage",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "sessionId": { "type": "string" },
+    "missionId": { "type": "string" },
+    "topic": { "type": "string" },
+    "repoPath": { "type": "string" },
+    "topLevelState": {
+      "type": "string",
+      "enum": [
+        "IDLE",
+        "MISSION_FRAMING",
+        "RESEARCH_LOOP",
+        "REPORTING",
+        "WAITING_FOR_RESOURCES",
+        "PAUSED",
+        "READY_FOR_SUMMARIZATION",
+        "FINAL_SUMMARIZATION",
+        "ARCHIVED"
+      ]
+    },
+    "researchState": {
+      "type": "string",
+      "enum": [
+        "RESEARCHING",
+        "FORMING_HYPOTHESES",
+        "BRANCH_SELECTION",
+        "PLANNING_PATCH",
+        "PATCHING",
+        "VALIDATING",
+        "RUNNING_EXPERIMENT",
+        "DEBUGGING",
+        "REFLECTING",
+        "RESEARCH_ROUND_DONE"
+      ]
+    },
+    "finalSummarizationState": {
+      "type": "string",
+      "enum": [
+        "SUMMARY_PLANNING",
+        "ARTIFACT_AGGREGATION",
+        "NARRATIVE_SYNTHESIS",
+        "FINAL_REPORT_DRAFTING",
+        "FINAL_OUTPUT_READY"
+      ]
+    },
+    "runtimeMode": {
+      "type": "string",
+      "enum": ["PLAN_MODE", "EXECUTION_MODE", "SUMMARIZE_MODE"]
+    },
+    "permissionMode": {
+      "type": "string",
+      "enum": ["default", "plan", "auto", "bypassPermissions"]
+    },
+    "currentRound": { "type": "integer", "minimum": 0 },
+    "readyForSummarization": { "type": "boolean" },
+    "userApprovedSummarization": { "type": "boolean" },
+    "paused": { "type": "boolean" },
+    "stopRequested": { "type": "boolean" },
+    "waitingForResources": { "type": "boolean" },
+    "createdAt": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

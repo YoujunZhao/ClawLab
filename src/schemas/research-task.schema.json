@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ResearchTask",
+  "type": "object",
+  "required": [
+    "id",
+    "type",
+    "title",
+    "objective",
+    "status",
+    "phase",
+    "createdAt",
+    "updatedAt",
+    "inputs",
+    "outputs",
+    "artifactIds",
+    "nextActionIds"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "parentTaskId": { "type": "string" },
+    "type": { "type": "string" },
+    "title": { "type": "string" },
+    "objective": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "running", "completed", "failed", "blocked", "cancelled"]
+    },
+    "phase": { "type": "string" },
+    "assignedAgent": { "type": "string" },
+    "branchId": { "type": "string" },
+    "createdAt": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "inputs": { "type": "object" },
+    "outputs": { "type": "object" },
+    "artifactIds": { "type": "array", "items": { "type": "string" } },
+    "nextActionIds": { "type": "array", "items": { "type": "string" } }
+  }
+}
