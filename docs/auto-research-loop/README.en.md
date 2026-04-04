@@ -9,8 +9,6 @@
   </a>
 </p>
 
-![ClawLab CLI demo](./assets/clawlab-cli-demo.svg)
-
 ## Overview
 
 ClawLab is a persistent, resumable, interruptible Auto Research Loop system built on top of a Claude Code CLI source snapshot.
@@ -290,6 +288,31 @@ This makes it possible to plan a run once and choose local or remote targets lat
 
 ## Commands
 
+### Setup
+
+```bash
+/research setup [--force]
+```
+
+Creates a stage-oriented scaffold (`paper/`, `experiment/`, `survey/`, `ideation/`, `promotion/`, `skills/`) and `.clawlab/` shared state files inspired by structured research plugins.
+
+Use `--force` to overwrite existing scaffold template files.
+
+### Team
+
+```bash
+/research team <subcommand>
+```
+
+Subcommands:
+
+- `init [--force]`: initialize team config, team state, and built-in skill catalog
+- `status`: show active stage, active role, and next commands
+- `roles`: list default agent team roles and role memory scopes
+- `switch <role>`: switch active role (`conductor`, `literature_scout`, `experiment_driver`, `paper_writer`, `reviewer`)
+- `skills [role] [--stage <stage>] [--category <name>]`: query built-in research skills
+- `help`: print team command help
+
 ### Start
 
 ```bash
@@ -327,6 +350,39 @@ This is the explicit opt-in switch for final summarization and writing.
 ```bash
 /research archive [sessionId]
 ```
+
+## Team Memory and Skills
+
+Team mode persists orchestration state under `.clawlab/`:
+
+- `.clawlab/team/team-config.json`
+- `.clawlab/team/team-state.json`
+- `.clawlab/skills/catalog.json`
+- `.clawlab/tasks/tasks.json`
+- `.clawlab/docs/research_brief.json`
+
+Core team memory files:
+
+- `.clawlab/memory/project_truth.md`
+- `.clawlab/memory/orchestrator_state.md`
+- `.clawlab/memory/execution_context.md`
+- `.clawlab/memory/literature_bank.md`
+- `.clawlab/memory/experiment_ledger.md`
+- `.clawlab/memory/result_summary.md`
+- `.clawlab/memory/review_log.md`
+- `.clawlab/memory/agent_handoff.md`
+- `.clawlab/memory/decision_log.md`
+
+Built-in skill catalog includes 40 research skills across:
+
+- literature
+- ideation
+- experiment
+- engineering
+- writing
+- review
+- ops
+- planning
 
 ## Validation
 

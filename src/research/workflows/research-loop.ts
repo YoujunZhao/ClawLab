@@ -323,6 +323,39 @@ function formatResearchIndex(index: ResearchIndexArtifact): string {
 	].join('\n')
 }
 
+type SmokeCheck = { command: string; success: boolean; stdout?: string; stderr?: string }
+
+type SmokeRunResult = {
+	success: boolean
+	checks: SmokeCheck[]
+}
+
+type RoundResearchBundle = {
+	scouted: Awaited<ReturnType<ScoutAgent['scout']>>
+	readerOutput: Awaited<ReturnType<ReaderAgent['read']>>
+	hypotheses: Hypothesis[]
+	piPlan: Awaited<ReturnType<PIAgent['planRound']>>
+}
+
+type RoundPlanBundle = {
+	branch: BranchRecord
+	plan: ReturnType<EngineerAgent['createPatchPlan']>
+	executionTarget: ExecutionTarget
+}
+
+type RoundValidationBundle = {
+	patchResult: PatchResult
+	smoke: SmokeRunResult
+	validationCommands: string[]
+}
+
+type RoundExecutionOutcome = {
+	runIds: string[]
+	metricHighlights: Record<string, number>
+	experimentsSummary: string[]
+	failuresAndFixes: string[]
+}
+
 export class ResearchLoop {
 	private readonly pi = new PIAgent(this.deps)
 	private readonly scout = new ScoutAgent(this.deps)
@@ -457,17 +490,7 @@ export class ResearchLoop {
 		return true
 	}
 
-	private async runSingleRound(input: ResearchMissionInput): Promise<{
-		reportContent: string
-		progressMade: boolean
-		readyForSummarization: boolean
-	}> {
-		const remoteMachines =
-			this.runtime.state.remoteMachines.length > 0
-				? this.runtime.state.remoteMachines
-				: (input.remoteMachines ?? [])
-		const roundNumber = this.runtime.state.currentRound + 1
-		const roundId = createRoundLabel(roundNumber)
+	private async startRound(roundNumber: number, roundId: string): Promise<ResearchTask> {
 		const task = await this.createRoundTask(roundId)
 		const stateMachine = new ResearchStateMachine(this.runtime.state)
 		await this.runtime.updateState((state) => ({
@@ -483,7 +506,13 @@ export class ResearchLoop {
 		}))
 		await this.trace.log({ type: 'round_started', roundId })
 		await this.deps.runTool('enter_plan_mode', {}, roundId)
+		return task
+	}
 
+	private async collectResearchBundle(
+		input: ResearchMissionInput,
+		roundId: string,
+	): Promise<RoundResearchBundle> {
 		const scouted = await this.scout.scout({
 			roundId,
 			topic: input.topic,
@@ -550,10 +579,29 @@ export class ResearchLoop {
 			hypotheses,
 		})
 
+		return {
+			scouted,
+			readerOutput,
+			hypotheses,
+			piPlan,
+		}
+	}
+
+	private async prepareRoundPlan(
+		input: ResearchMissionInput,
+		roundId: string,
+		remoteMachines: RemoteMachineConfig[],
+		researchBundle: RoundResearchBundle,
+	): Promise<RoundPlanBundle> {
 		await this.runtime.updateState((state) => ({
 			...state,
 			researchState: 'BRANCH_SELECTION',
 		}))
+
+		const selectedHypothesis =
+			researchBundle.hypotheses.find((hypothesis) =>
+				researchBundle.piPlan.selectedHypothesisIds.includes(hypothesis.id),
+			) ?? researchBundle.hypotheses[0]
 
 		const branchResult = await this.deps.runTool<
 			{ action: 'ensure'; preferredKind: Hypothesis['branchKind']; hypothesis: Hypothesis },
@@ -562,10 +610,8 @@ export class ResearchLoop {
 			'worktree_manager',
 			{
 				action: 'ensure',
-				preferredKind: piPlan.selectedBranchKind,
-				hypothesis:
-					hypotheses.find((hypothesis) => piPlan.selectedHypothesisIds.includes(hypothesis.id)) ??
-					hypotheses[0],
+				preferredKind: researchBundle.piPlan.selectedBranchKind,
+				hypothesis: selectedHypothesis,
 			},
 			roundId,
 		)
@@ -577,12 +623,10 @@ export class ResearchLoop {
 		}))
 
 		const plan = this.engineer.createPatchPlan({
-			hypothesis:
-				hypotheses.find((hypothesis) => piPlan.selectedHypothesisIds.includes(hypothesis.id)) ??
-				hypotheses[0],
-			repoSummary: scouted.repoSummary,
-			keyFiles: scouted.keyFiles,
-			configs: scouted.configs,
+			hypothesis: selectedHypothesis,
+			repoSummary: researchBundle.scouted.repoSummary,
+			keyFiles: researchBundle.scouted.keyFiles,
+			configs: researchBundle.scouted.configs,
 			focusFiles: input.preferredFocusFiles,
 		})
 		const executionTarget = chooseExecutionTarget(
@@ -591,6 +635,7 @@ export class ResearchLoop {
 			remoteMachines,
 			branch.worktreePath,
 		)
+
 		if (executionTarget.type === 'ssh') {
 			const remoteMachine = remoteMachines.find(
 				(machine) => machine.id === executionTarget.machineId,
@@ -606,6 +651,7 @@ export class ResearchLoop {
 				environmentName: remoteMachine?.pythonEnvName ?? 'unspecified',
 			})
 		}
+
 		await this.runtime.artifactStore.writeJson('results/patch_plan.json', plan.patchPlan)
 		await this.runtime.artifactStore.writeJson('results/validation_plan.json', {
 			staticCheckCommands: plan.validationChecklist,
@@ -627,14 +673,27 @@ export class ResearchLoop {
 			runtimeMode: 'EXECUTION_MODE',
 		}))
 
+		return {
+			branch,
+			plan,
+			executionTarget,
+		}
+	}
+
+	private async applyPatchAndValidate(
+		input: ResearchMissionInput,
+		roundId: string,
+		planBundle: RoundPlanBundle,
+		scouted: RoundResearchBundle['scouted'],
+	): Promise<RoundValidationBundle> {
 		const patchResultInfo = await this.engineer.applyPatch({
 			roundId,
-			branch,
-			patchPlan: plan.patchPlan,
+			branch: planBundle.branch,
+			patchPlan: planBundle.plan.patchPlan,
 		})
 		const patchResult: PatchResult = {
 			id: patchResultInfo.patchResultId,
-			patchPlanId: plan.patchPlan.id,
+			patchPlanId: planBundle.plan.patchPlan.id,
 			filesChanged: patchResultInfo.filesChanged,
 			diffSummary: patchResultInfo.diffSummary,
 			success: true,
@@ -658,136 +717,186 @@ export class ResearchLoop {
 		const validationCommands = buildValidationCommands(scouted.commands, input.smokeCommands)
 		const smoke = await this.deps.runTool<
 			{ commands: string[]; executionTarget: ExecutionTarget },
-			{
-				success: boolean
-				checks: Array<{ command: string; success: boolean; stdout?: string; stderr?: string }>
-			}
+			SmokeRunResult
 		>(
 			'smoke_run',
 			{
 				commands: validationCommands.length > 0 ? validationCommands : ['pwd'],
-				executionTarget,
+				executionTarget: planBundle.executionTarget,
 			},
 			roundId,
-			branch.id,
+			planBundle.branch.id,
 		)
 		await this.runtime.artifactStore.writeJson(
 			`validation_logs/${roundId}.json`,
 			smoke as unknown as Record<string, unknown>,
 		)
 
-		let failureClass = ''
-		let runIds: string[] = []
-		let metricHighlights: Record<string, number> = {}
-		let experimentsSummary: string[] = []
-		const failuresAndFixes: string[] = []
-
-		if (!smoke.success) {
-			await this.runtime.updateState((state) => ({
-				...state,
-				researchState: 'DEBUGGING',
-			}))
-			const failure = await this.deps.runTool<{ text: string }, { failureClass: string }>(
-				'failure_classifier',
-				{
-					text: smoke.checks.map((check) => `${check.command}\n${check.stderr ?? ''}`).join('\n'),
-				},
-				roundId,
-				branch.id,
-			)
-			failureClass = failure.failureClass
-			failuresAndFixes.push(
-				`Validation failed before full experiment. Classified as ${failureClass}.`,
-			)
-			await this.runtime.memoryStore.noteLoopUpdate({
-				failedDirection: plan.patchPlan.intent,
-				failureClass,
-			})
-			await this.runtime.updateState((state) => ({
-				...state,
-				budgetUsage: {
-					...state.budgetUsage,
-					debugActionsUsed: state.budgetUsage.debugActionsUsed + 1,
-				},
-			}))
-			await this.deps.runTool(
-				'worktree_manager',
-				{
-					action: 'fail',
-					branchId: branch.id,
-					note: `Validation failure (${failureClass}) in ${roundId}`,
-				},
-				roundId,
-				branch.id,
-			)
-		} else {
-			await this.runtime.updateState((state) => ({
-				...state,
-				researchState: 'RUNNING_EXPERIMENT',
-			}))
-			const experimentPlan: ExperimentPlan = {
-				id: createRunLabel(this.runtime.state.budgetUsage.experimentsUsed + 1),
-				hypothesisId: plan.patchPlan.hypothesisId,
-				branchId: branch.id,
-				objective: piPlan.roundObjective,
-				variants: [plan.patchPlan.intent],
-				controls: validationCommands.slice(0, 2),
-				metrics: input.metrics ?? [],
-				budget: input.budget,
-				stoppingRules: [
-					'Stop after smoke + short run if metrics regress or logs indicate instability.',
-					'Only continue to full run after a successful short run.',
-				],
-				expectedOutcome:
-					hypotheses[0]?.expectedGain ?? 'Reduce uncertainty or improve best-so-far.',
-				executionTarget,
-			}
-			await this.deps.runTool(
-				'experiment_plan_writer',
-				{ plan: experimentPlan },
-				roundId,
-				branch.id,
-			)
-			const runnerOutput = await this.runner.run({
-				roundId,
-				branchId: branch.id,
-				experimentPlan,
-				commandTemplate:
-					input.fullRunCommand ?? input.shortRunCommand ?? validationCommands[0] ?? 'pwd',
-			})
-			runIds = runnerOutput.runIds
-			metricHighlights = runnerOutput.metricHighlights
-			experimentsSummary = runnerOutput.summaries
-			failuresAndFixes.push(
-				...runnerOutput.failureClasses.map(
-					(currentFailure) => `Experiment issue classified as ${currentFailure}.`,
-				),
-			)
-			await this.runtime.updateState((state) => ({
-				...state,
-				budgetUsage: {
-					...state.budgetUsage,
-					experimentsUsed: state.budgetUsage.experimentsUsed + 1,
-				},
-			}))
-			failureClass = runnerOutput.failureClasses[0] ?? ''
-			await this.runtime.artifactStore.writeJson(`runs/${roundId}/metrics.json`, metricHighlights)
+		return {
+			patchResult,
+			smoke,
+			validationCommands,
 		}
+	}
 
+	private async handleSmokeFailure(
+		roundId: string,
+		branch: BranchRecord,
+		patchIntent: string,
+		smoke: SmokeRunResult,
+	): Promise<RoundExecutionOutcome> {
 		await this.runtime.updateState((state) => ({
 			...state,
-			researchState: 'REFLECTING',
-			topLevelState: 'REPORTING',
+			researchState: 'DEBUGGING',
+		}))
+		const failure = await this.deps.runTool<{ text: string }, { failureClass: string }>(
+			'failure_classifier',
+			{
+				text: smoke.checks.map((check) => `${check.command}\n${check.stderr ?? ''}`).join('\n'),
+			},
+			roundId,
+			branch.id,
+		)
+		const failuresAndFixes = [
+			`Validation failed before full experiment. Classified as ${failure.failureClass}.`,
+		]
+		await this.runtime.memoryStore.noteLoopUpdate({
+			failedDirection: patchIntent,
+			failureClass: failure.failureClass,
+		})
+		await this.runtime.updateState((state) => ({
+			...state,
+			budgetUsage: {
+				...state.budgetUsage,
+				debugActionsUsed: state.budgetUsage.debugActionsUsed + 1,
+			},
+		}))
+		await this.deps.runTool(
+			'worktree_manager',
+			{
+				action: 'fail',
+				branchId: branch.id,
+				note: `Validation failure (${failure.failureClass}) in ${roundId}`,
+			},
+			roundId,
+			branch.id,
+		)
+		return {
+			runIds: [],
+			metricHighlights: {},
+			experimentsSummary: [],
+			failuresAndFixes,
+		}
+	}
+
+	private async runExperimentPhase(
+		input: ResearchMissionInput,
+		roundId: string,
+		planBundle: RoundPlanBundle,
+		researchBundle: RoundResearchBundle,
+		validationCommands: string[],
+	): Promise<RoundExecutionOutcome> {
+		await this.runtime.updateState((state) => ({
+			...state,
+			researchState: 'RUNNING_EXPERIMENT',
 		}))
 
-		const critic = this.critic.review({
-			hypothesis: hypotheses[0],
-			runIds,
-			patchResult,
-			metricHighlights,
-		})
+		const experimentPlan: ExperimentPlan = {
+			id: createRunLabel(this.runtime.state.budgetUsage.experimentsUsed + 1),
+			hypothesisId: planBundle.plan.patchPlan.hypothesisId,
+			branchId: planBundle.branch.id,
+			objective: researchBundle.piPlan.roundObjective,
+			variants: [planBundle.plan.patchPlan.intent],
+			controls: validationCommands.slice(0, 2),
+			metrics: input.metrics ?? [],
+			budget: input.budget,
+			stoppingRules: [
+				'Stop after smoke + short run if metrics regress or logs indicate instability.',
+				'Only continue to full run after a successful short run.',
+			],
+			expectedOutcome:
+				researchBundle.hypotheses[0]?.expectedGain ?? 'Reduce uncertainty or improve best-so-far.',
+			executionTarget: planBundle.executionTarget,
+		}
+		await this.deps.runTool(
+			'experiment_plan_writer',
+			{ plan: experimentPlan },
+			roundId,
+			planBundle.branch.id,
+		)
 
-		const bestSoFar: BestSoFarArtifact = {
+		const runnerOutput = await this.runner.run({
+			roundId,
+			branchId: planBundle.branch.id,
+			experimentPlan,
+			commandTemplate:
+				input.fullRunCommand ?? input.shortRunCommand ?? validationCommands[0] ?? 'pwd',
+		})
+		const failuresAndFixes = runnerOutput.failureClasses.map(
+			(currentFailure) => `Experiment issue classified as ${currentFailure}.`,
+		)
+		await this.runtime.updateState((state) => ({
+			...state,
+			budgetUsage: {
+				...state.budgetUsage,
+				experimentsUsed: state.budgetUsage.experimentsUsed + 1,
+			},
+		}))
+		await this.runtime.artifactStore.writeJson(
+			`runs/${roundId}/metrics.json`,
+			runnerOutput.metricHighlights,
+		)
+		return {
+			runIds: runnerOutput.runIds,
+			metricHighlights: runnerOutput.metricHighlights,
+			experimentsSummary: runnerOutput.summaries,
+			failuresAndFixes,
+		}
+	}
+
+	private async resolveRoundOutcome(
+		input: ResearchMissionInput,
+		roundId: string,
+		planBundle: RoundPlanBundle,
+		researchBundle: RoundResearchBundle,
+		validationBundle: RoundValidationBundle,
+	): Promise<RoundExecutionOutcome> {
+		if (!validationBundle.smoke.success) {
+			return this.handleSmokeFailure(
+				roundId,
+				planBundle.branch,
+				planBundle.plan.patchPlan.intent,
+				validationBundle.smoke,
+			)
+		}
+		return this.runExperimentPhase(
+			input,
+			roundId,
+			planBundle,
+			researchBundle,
+			validationBundle.validationCommands,
+		)
+	}
+
+	private findRemoteMachine(
+		remoteMachines: RemoteMachineConfig[],
+		executionTarget: ExecutionTarget,
+	): RemoteMachineConfig | undefined {
+		if (executionTarget.type !== 'ssh') {
+			return undefined
+		}
+		return remoteMachines.find((machine) => machine.id === executionTarget.machineId)
+	}
+
+	private buildBestSoFar(
+		roundId: string,
+		branch: BranchRecord,
+		readerOutput: RoundResearchBundle['readerOutput'],
+		metricHighlights: Record<string, number>,
+		runIds: string[],
+		experimentsSummary: string[],
+	): BestSoFarArtifact {
+		return {
 			roundId,
 			summary:
 				runIds.length > 0
@@ -799,8 +908,13 @@ export class ResearchLoop {
 			metrics: metricHighlights,
 			updatedAt: nowIso(),
 		}
+	}
 
-		const nextActions = [
+	private buildNextActions(
+		branch: BranchRecord,
+		piPlan: RoundResearchBundle['piPlan'],
+	): NextAction[] {
+		return [
 			{
 				id: createResearchId('action'),
 				kind: piPlan.exploitOrExplore,
@@ -812,15 +926,28 @@ export class ResearchLoop {
 				branchId: branch.id,
 				hypothesisIds: piPlan.selectedHypothesisIds,
 			},
-		] satisfies NextAction[]
+		]
+	}
+
+	private async writeRoundReflectionArtifacts(
+		input: ResearchMissionInput,
+		roundId: string,
+		planBundle: RoundPlanBundle,
+		researchBundle: RoundResearchBundle,
+		validationBundle: RoundValidationBundle,
+		outcome: RoundExecutionOutcome,
+		critic: ReturnType<CriticAgent['review']>,
+		nextActions: NextAction[],
+	): Promise<void> {
 		await this.runtime.artifactStore.writeJson('results/reflection.json', {
-			hypothesisId: hypotheses[0].id,
+			hypothesisId: researchBundle.hypotheses[0].id,
 			roundId,
 			outcome: critic.verdict,
-			exploitOrExploreNext: piPlan.exploitOrExplore,
-			substantialProgress: runIds.length > 0 || patchResult.filesChanged.length > 0,
-			bestSoFarImproved: runIds.length > 0,
-			nextCandidateHypothesisIds: hypotheses.map((hypothesis) => hypothesis.id),
+			exploitOrExploreNext: researchBundle.piPlan.exploitOrExplore,
+			substantialProgress:
+				outcome.runIds.length > 0 || validationBundle.patchResult.filesChanged.length > 0,
+			bestSoFarImproved: outcome.runIds.length > 0,
+			nextCandidateHypothesisIds: researchBundle.hypotheses.map((hypothesis) => hypothesis.id),
 			notes: critic.concerns,
 		})
 		await this.runtime.artifactStore.writeJson(
@@ -828,8 +955,8 @@ export class ResearchLoop {
 			nextActions as unknown as Record<string, unknown>,
 		)
 		await this.runtime.artifactStore.writeJson('results/updated_branch_plan.json', {
-			activeBranchId: branch.id,
-			branchKind: branch.kind,
+			activeBranchId: planBundle.branch.id,
+			branchKind: planBundle.branch.kind,
 		})
 		await this.runtime.artifactStore.writeJson(
 			'results/updated_budget_state.json',
@@ -841,53 +968,96 @@ export class ResearchLoop {
 					? 'Default path after reporting is to continue to the next round.'
 					: 'Stopped because the configured round budget was reached.',
 		})
+	}
 
-		const report: UserRoundReport = {
+	private formatCodeChanges(patchResult: PatchResult): string[] {
+		if (patchResult.filesChanged.length > 0) {
+			return [patchResult.diffSummary]
+		}
+		return ['No deterministic patch landed; round stayed artifact-driven and branch-isolated.']
+	}
+
+	private formatExperimentSummaries(experimentsSummary: string[]): string[] {
+		if (experimentsSummary.length > 0) {
+			return experimentsSummary
+		}
+		return ['No full experiment launched because validation failed or resources were gated.']
+	}
+
+	private formatFailures(failuresAndFixes: string[]): string[] {
+		if (failuresAndFixes.length > 0) {
+			return failuresAndFixes
+		}
+		return ['No blocking failures in this round.']
+	}
+
+	private formatUncertainties(concerns: string[]): string[] {
+		if (concerns.length > 0) {
+			return concerns
+		}
+		return ['Metric confidence still needs additional runs.']
+	}
+
+	private buildExecutionEnvironmentSummary(
+		executionTarget: ExecutionTarget,
+		remoteMachine: RemoteMachineConfig | undefined,
+	): string[] {
+		const isRemote = executionTarget.type === 'ssh'
+		return [
+			`mode: ${isRemote ? 'remote' : 'local'}`,
+			`remote host: ${remoteMachine?.host ?? (isRemote ? (executionTarget.machineId ?? 'n/a') : 'n/a')}`,
+			`GPU allocation: ${executionTarget.gpuAllocation?.visibleDevices ?? executionTarget.gpuAllocation?.mode ?? 'none'}`,
+			`environment name: ${remoteMachine?.pythonEnvName ?? (isRemote ? 'unspecified' : 'local/default')}`,
+			`working directory: ${executionTarget.cwd}`,
+		]
+	}
+
+	private buildRoundReport(
+		roundId: string,
+		planBundle: RoundPlanBundle,
+		researchBundle: RoundResearchBundle,
+		bestSoFar: BestSoFarArtifact,
+		nextActions: NextAction[],
+		outcome: RoundExecutionOutcome,
+		critic: ReturnType<CriticAgent['review']>,
+		remoteMachines: RemoteMachineConfig[],
+		validationBundle: RoundValidationBundle,
+	): UserRoundReport {
+		const remoteMachine = this.findRemoteMachine(remoteMachines, planBundle.executionTarget)
+		return {
 			roundId,
-			objective: piPlan.roundObjective,
-			researchSummary: [...scouted.repoSummary, ...scouted.sourceSummaries.slice(0, 3)],
-			evidenceAdded: readerOutput.extractedClaims.slice(0, 5),
-			codeChanges:
-				patchResult.filesChanged.length > 0
-					? [patchResult.diffSummary]
-					: ['No deterministic patch landed; round stayed artifact-driven and branch-isolated.'],
-			experimentsRun:
-				experimentsSummary.length > 0
-					? experimentsSummary
-					: ['No full experiment launched because validation failed or resources were gated.'],
+			objective: researchBundle.piPlan.roundObjective,
+			researchSummary: [
+				...researchBundle.scouted.repoSummary,
+				...researchBundle.scouted.sourceSummaries.slice(0, 3),
+			],
+			evidenceAdded: researchBundle.readerOutput.extractedClaims.slice(0, 5),
+			codeChanges: this.formatCodeChanges(validationBundle.patchResult),
+			experimentsRun: this.formatExperimentSummaries(outcome.experimentsSummary),
 			keyResults: [
-				...Object.entries(metricHighlights).map(([metric, value]) => `${metric}=${value}`),
+				...Object.entries(outcome.metricHighlights).map(([metric, value]) => `${metric}=${value}`),
 				`Critic verdict: ${critic.verdict}`,
 			],
-			failuresAndFixes:
-				failuresAndFixes.length > 0 ? failuresAndFixes : ['No blocking failures in this round.'],
+			failuresAndFixes: this.formatFailures(outcome.failuresAndFixes),
 			currentBestSoFar: bestSoFar.summary,
-			uncertainties:
-				critic.concerns.length > 0
-					? critic.concerns
-					: ['Metric confidence still needs additional runs.'],
+			uncertainties: this.formatUncertainties(critic.concerns),
 			nextRoundPlan: nextActions.map((action) => action.description),
-			executionEnvironmentSummary: [
-				`mode: ${executionTarget.type === 'ssh' ? 'remote' : 'local'}`,
-				`remote host: ${
-					executionTarget.type === 'ssh'
-						? (remoteMachines.find((machine) => machine.id === executionTarget.machineId)?.host ??
-							executionTarget.machineId ??
-							'n/a')
-						: 'n/a'
-				}`,
-				`GPU allocation: ${executionTarget.gpuAllocation?.visibleDevices ?? executionTarget.gpuAllocation?.mode ?? 'none'}`,
-				`environment name: ${
-					executionTarget.type === 'ssh'
-						? (remoteMachines.find((machine) => machine.id === executionTarget.machineId)
-								?.pythonEnvName ?? 'unspecified')
-						: 'local/default'
-				}`,
-				`working directory: ${executionTarget.cwd}`,
-			],
+			executionEnvironmentSummary: this.buildExecutionEnvironmentSummary(
+				planBundle.executionTarget,
+				remoteMachine,
+			),
 		}
+	}
 
-		const reportResult = await this.reporting.writeRoundReport(roundId, report, bestSoFar)
+	private async persistRoundIndexAndTask(
+		input: ResearchMissionInput,
+		roundId: string,
+		roundNumber: number,
+		task: ResearchTask,
+		nextActions: NextAction[],
+		reportPath: string,
+		bestSoFarSummary: string,
+	): Promise<void> {
 		const branches = await this.branchManager.list()
 		const researchIndex: ResearchIndexArtifact = {
 			sessionId: this.runtime.state.sessionId,
@@ -900,8 +1070,8 @@ export class ResearchLoop {
 			topLevelState: 'REPORTING',
 			researchState: 'RESEARCH_ROUND_DONE',
 			latestRoundId: roundId,
-			latestReportPath: reportResult.reportPath,
-			bestSoFarSummary: bestSoFar.summary,
+			latestReportPath: reportPath,
+			bestSoFarSummary,
 			activeBranches: branches.map((currentBranch) => ({
 				id: currentBranch.id,
 				name: currentBranch.name,
@@ -931,30 +1101,152 @@ export class ResearchLoop {
 			status: 'completed',
 			phase: 'reporting',
 			outputs: {
-				reportPath: reportResult.reportPath,
-				bestSoFar: bestSoFar.summary,
+				reportPath,
+				bestSoFar: bestSoFarSummary,
 			},
 		})
 		await this.trace.log({
 			type: 'round_completed',
 			roundId,
 			data: {
-				reportPath: reportResult.reportPath,
+				reportPath,
 			},
 		})
-		const readyForSummarization =
-			runIds.length > 0 && (input.successCriteria?.length ?? 0) === 0
-				? roundNumber >= 2
-				: Object.keys(metricHighlights).length > 0
+	}
+
+	private computeReadyForSummarization(
+		input: ResearchMissionInput,
+		roundNumber: number,
+		outcome: RoundExecutionOutcome,
+	): boolean {
+		if (outcome.runIds.length > 0 && (input.successCriteria?.length ?? 0) === 0) {
+			return roundNumber >= 2
+		}
+		return Object.keys(outcome.metricHighlights).length > 0
+	}
+
+	private async completeRound(
+		input: ResearchMissionInput,
+		roundId: string,
+		roundNumber: number,
+		task: ResearchTask,
+		remoteMachines: RemoteMachineConfig[],
+		planBundle: RoundPlanBundle,
+		researchBundle: RoundResearchBundle,
+		validationBundle: RoundValidationBundle,
+		outcome: RoundExecutionOutcome,
+	): Promise<{ reportContent: string; readyForSummarization: boolean }> {
+		await this.runtime.updateState((state) => ({
+			...state,
+			researchState: 'REFLECTING',
+			topLevelState: 'REPORTING',
+		}))
+
+		const critic = this.critic.review({
+			hypothesis: researchBundle.hypotheses[0],
+			runIds: outcome.runIds,
+			patchResult: validationBundle.patchResult,
+			metricHighlights: outcome.metricHighlights,
+		})
+		const bestSoFar = this.buildBestSoFar(
+			roundId,
+			planBundle.branch,
+			researchBundle.readerOutput,
+			outcome.metricHighlights,
+			outcome.runIds,
+			outcome.experimentsSummary,
+		)
+		const nextActions = this.buildNextActions(planBundle.branch, researchBundle.piPlan)
+
+		await this.writeRoundReflectionArtifacts(
+			input,
+			roundId,
+			planBundle,
+			researchBundle,
+			validationBundle,
+			outcome,
+			critic,
+			nextActions,
+		)
+
+		const report = this.buildRoundReport(
+			roundId,
+			planBundle,
+			researchBundle,
+			bestSoFar,
+			nextActions,
+			outcome,
+			critic,
+			remoteMachines,
+			validationBundle,
+		)
+		const reportResult = await this.reporting.writeRoundReport(roundId, report, bestSoFar)
+		await this.persistRoundIndexAndTask(
+			input,
+			roundId,
+			roundNumber,
+			task,
+			nextActions,
+			reportResult.reportPath,
+			bestSoFar.summary,
+		)
+
+		const readyForSummarization = this.computeReadyForSummarization(input, roundNumber, outcome)
 		await this.runtime.updateState((state) => ({
 			...state,
 			topLevelState: readyForSummarization ? 'READY_FOR_SUMMARIZATION' : 'RESEARCH_LOOP',
 			researchState: 'RESEARCH_ROUND_DONE',
 		}))
+
 		return {
 			reportContent: reportResult.content,
-			progressMade: runIds.length > 0 || patchResult.filesChanged.length > 0,
 			readyForSummarization,
+		}
+	}
+
+	private async runSingleRound(input: ResearchMissionInput): Promise<{
+		reportContent: string
+		progressMade: boolean
+		readyForSummarization: boolean
+	}> {
+		const remoteMachines =
+			this.runtime.state.remoteMachines.length > 0
+				? this.runtime.state.remoteMachines
+				: (input.remoteMachines ?? [])
+		const roundNumber = this.runtime.state.currentRound + 1
+		const roundId = createRoundLabel(roundNumber)
+		const task = await this.startRound(roundNumber, roundId)
+		const researchBundle = await this.collectResearchBundle(input, roundId)
+		const planBundle = await this.prepareRoundPlan(input, roundId, remoteMachines, researchBundle)
+		const validationBundle = await this.applyPatchAndValidate(
+			input,
+			roundId,
+			planBundle,
+			researchBundle.scouted,
+		)
+		const outcome = await this.resolveRoundOutcome(
+			input,
+			roundId,
+			planBundle,
+			researchBundle,
+			validationBundle,
+		)
+		const completion = await this.completeRound(
+			input,
+			roundId,
+			roundNumber,
+			task,
+			remoteMachines,
+			planBundle,
+			researchBundle,
+			validationBundle,
+			outcome,
+		)
+		return {
+			reportContent: completion.reportContent,
+			progressMade:
+				outcome.runIds.length > 0 || validationBundle.patchResult.filesChanged.length > 0,
+			readyForSummarization: completion.readyForSummarization,
 		}
 	}
 

@@ -26,6 +26,71 @@ type AgentDeps = {
 export class PIAgent {
 	constructor(private readonly deps: AgentDeps) {}
 
+	private selectHypotheses(hypotheses: Hypothesis[]): Hypothesis[] {
+		const sorted = [...hypotheses].sort((left, right) => right.confidence - left.confidence)
+		return sorted.slice(0, Math.min(2, sorted.length))
+	}
+
+	private resolveMode(input: {
+		recentFailures: string[]
+		currentBestSummary?: string
+	}): 'exploit' | 'explore' | 'repair' {
+		if (input.recentFailures.length >= 2) {
+			return 'repair'
+		}
+		return input.currentBestSummary ? 'exploit' : 'explore'
+	}
+
+	private resolveBranchKind(mode: 'exploit' | 'explore' | 'repair'): ResearchBranchKind {
+		if (mode === 'repair') {
+			return 'repair'
+		}
+		return mode === 'exploit' ? 'mainline' : 'exploration'
+	}
+
+	private buildFallbackRationale(mode: 'exploit' | 'explore' | 'repair'): string {
+		if (mode === 'repair') {
+			return 'Recent failures cluster around execution stability, so the repair branch gets priority.'
+		}
+		if (mode === 'exploit') {
+			return 'There is a credible best-so-far signal, so the next round should exploit the strongest hypothesis.'
+		}
+		return 'There is no dominant best-so-far yet, so the next round should explore the strongest unexplored path.'
+	}
+
+	private async resolveRationale(input: {
+		missionTopic: string
+		currentBestSummary?: string
+		recentFailures: string[]
+		openQuestions: string[]
+		selected: Hypothesis[]
+		selectedBranchKind: ResearchBranchKind
+		mode: 'exploit' | 'explore' | 'repair'
+		fallbackRationale: string
+	}): Promise<string> {
+		if (!this.deps.runModel) {
+			return input.fallbackRationale
+		}
+		try {
+			const response = await this.deps.runModel(
+				'research',
+				[
+					'Write one concise rationale for the next ClawLab round.',
+					`Mission topic: ${input.missionTopic}`,
+					`Current best summary: ${input.currentBestSummary ?? 'none'}`,
+					`Recent failures: ${input.recentFailures.join(' | ') || 'none'}`,
+					`Open questions: ${input.openQuestions.join(' | ') || 'none'}`,
+					`Selected hypothesis IDs: ${input.selected.map((hypothesis) => hypothesis.id).join(', ') || 'none'}`,
+					`Chosen branch kind: ${input.selectedBranchKind}`,
+					`Mode: ${input.mode}`,
+				].join('\n'),
+			)
+			return response.content.trim() || input.fallbackRationale
+		} catch {
+			return input.fallbackRationale
+		}
+	}
+
 	async planRound(input: {
 		roundId: string
 		missionTopic: string
@@ -40,45 +105,23 @@ export class PIAgent {
 		exploitOrExplore: 'exploit' | 'explore' | 'repair'
 		rationale: string
 	}> {
-		const sorted = [...input.hypotheses].sort((left, right) => right.confidence - left.confidence)
-		const selected = sorted.slice(0, Math.min(2, sorted.length))
-		const exploitOrExplore =
-			input.recentFailures.length >= 2 ? 'repair' : input.currentBestSummary ? 'exploit' : 'explore'
-		const selectedBranchKind =
-			exploitOrExplore === 'repair'
-				? 'repair'
-				: exploitOrExplore === 'exploit'
-					? 'mainline'
-					: 'exploration'
-		const fallbackRationale =
-			exploitOrExplore === 'repair'
-				? 'Recent failures cluster around execution stability, so the repair branch gets priority.'
-				: exploitOrExplore === 'exploit'
-					? 'There is a credible best-so-far signal, so the next round should exploit the strongest hypothesis.'
-					: 'There is no dominant best-so-far yet, so the next round should explore the strongest unexplored path.'
-		let rationale = fallbackRationale
-		if (this.deps.runModel) {
-			try {
-				const response = await this.deps.runModel(
-					'research',
-					[
-						'Write one concise rationale for the next ClawLab round.',
-						`Mission topic: ${input.missionTopic}`,
-						`Current best summary: ${input.currentBestSummary ?? 'none'}`,
-						`Recent failures: ${input.recentFailures.join(' | ') || 'none'}`,
-						`Open questions: ${input.openQuestions.join(' | ') || 'none'}`,
-						`Selected hypothesis IDs: ${selected.map((hypothesis) => hypothesis.id).join(', ') || 'none'}`,
-						`Chosen branch kind: ${selectedBranchKind}`,
-						`Mode: ${exploitOrExplore}`,
-					].join('\n'),
-				)
-				if (response.content.trim()) {
-					rationale = response.content.trim()
-				}
-			} catch {
-				rationale = fallbackRationale
-			}
-		}
+		const selected = this.selectHypotheses(input.hypotheses)
+		const exploitOrExplore = this.resolveMode({
+			recentFailures: input.recentFailures,
+			currentBestSummary: input.currentBestSummary,
+		})
+		const selectedBranchKind = this.resolveBranchKind(exploitOrExplore)
+		const fallbackRationale = this.buildFallbackRationale(exploitOrExplore)
+		const rationale = await this.resolveRationale({
+			missionTopic: input.missionTopic,
+			currentBestSummary: input.currentBestSummary,
+			recentFailures: input.recentFailures,
+			openQuestions: input.openQuestions,
+			selected,
+			selectedBranchKind,
+			mode: exploitOrExplore,
+			fallbackRationale,
+		})
 		return {
 			roundObjective: selected[0]?.minimalTest ?? `Reduce uncertainty around ${input.missionTopic}`,
 			selectedBranchKind,

@@ -9,8 +9,6 @@
   </a>
 </p>
 
-![ClawLab CLI demo](./assets/clawlab-cli-demo.svg)
-
 ## 系统简介
 
 ClawLab 是一个构建在 Claude Code CLI 源码快照之上的持续式 Auto Research Loop 系统。
@@ -298,6 +296,31 @@ export ANTHROPIC_API_KEY=...
 
 ## 命令
 
+### 初始化脚手架
+
+```bash
+/research setup [--force]
+```
+
+会创建阶段化研究目录（`paper/`、`experiment/`、`survey/`、`ideation/`、`promotion/`、`skills/`）以及 `.clawlab/` 共享状态文件，便于持续科研循环协作。
+
+如果要覆盖已有模板文件，使用 `--force`。
+
+### Team 多 Agent 模式
+
+```bash
+/research team <subcommand>
+```
+
+子命令：
+
+- `init [--force]`：初始化团队配置、团队状态和内置 skills catalog
+- `status`：查看当前 stage、当前角色和建议下一步
+- `roles`：查看默认 Team 角色与记忆作用域
+- `switch <role>`：切换当前角色（`conductor`、`literature_scout`、`experiment_driver`、`paper_writer`、`reviewer`）
+- `skills [role] [--stage <stage>] [--category <name>]`：按角色/阶段/分类筛选内置技能
+- `help`：输出 Team 命令帮助
+
 ### 启动
 
 ```bash
@@ -335,6 +358,39 @@ export ANTHROPIC_API_KEY=...
 ```bash
 /research archive [sessionId]
 ```
+
+## Team 记忆系统与内置技能
+
+Team 模式会把协作状态写入 `.clawlab/`：
+
+- `.clawlab/team/team-config.json`
+- `.clawlab/team/team-state.json`
+- `.clawlab/skills/catalog.json`
+- `.clawlab/tasks/tasks.json`
+- `.clawlab/docs/research_brief.json`
+
+核心记忆文件：
+
+- `.clawlab/memory/project_truth.md`
+- `.clawlab/memory/orchestrator_state.md`
+- `.clawlab/memory/execution_context.md`
+- `.clawlab/memory/literature_bank.md`
+- `.clawlab/memory/experiment_ledger.md`
+- `.clawlab/memory/result_summary.md`
+- `.clawlab/memory/review_log.md`
+- `.clawlab/memory/agent_handoff.md`
+- `.clawlab/memory/decision_log.md`
+
+当前内置 40 个 research skills，覆盖：
+
+- literature
+- ideation
+- experiment
+- engineering
+- writing
+- review
+- ops
+- planning
 
 ## 验证
 

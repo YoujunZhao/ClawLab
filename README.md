@@ -13,8 +13,6 @@
   <strong>ClawLab</strong> is a persistent Auto Research Loop system built on top of a Claude Code CLI source snapshot.
 </p>
 
-![ClawLab CLI demo](./docs/auto-research-loop/assets/clawlab-cli-demo.svg)
-
 ## What ClawLab Is
 
 ClawLab is not a one-shot deep research chatbot.
@@ -85,6 +83,81 @@ Typical cases:
   --focus-file src/train.py \
   --focus-file configs/train.json
 ```
+
+## Agent Team Mode
+
+ClawLab now includes a multi-agent Team mode inspired by patterns from oh-my-paper, oh-my-codex, and oh-my-claudecode, adapted to this repository's research loop.
+
+Canonical team pipeline:
+
+- team-plan
+- team-prd
+- team-exec
+- team-verify
+- team-fix
+
+Default team roles:
+
+- conductor: global planning, dispatch, and stage transitions
+- literature_scout: paper/repo search and evidence curation
+- experiment_driver: patch/validate/run/debug loop owner
+- paper_writer: report/paper narrative and figure-ready outputs
+- reviewer: methodology/statistics/reproducibility quality gate
+
+Team command surface:
+
+```bash
+/research team init
+/research team status
+/research team roles
+/research team switch reviewer
+/research team skills --stage experiment
+```
+
+## Memory System
+
+The Team mode writes durable shared state under `.clawlab/`.
+
+Key files:
+
+- `.clawlab/tasks/tasks.json`: stage-level task tree and active stage
+- `.clawlab/docs/research_brief.json`: mission brief and constraints
+- `.clawlab/team/team-config.json`: role definitions and team pipeline
+- `.clawlab/team/team-state.json`: active role and role switch history
+- `.clawlab/skills/catalog.json`: built-in research skill catalog
+
+Core memory files:
+
+- `.clawlab/memory/project_truth.md`
+- `.clawlab/memory/literature_bank.md`
+- `.clawlab/memory/experiment_ledger.md`
+- `.clawlab/memory/result_summary.md`
+- `.clawlab/memory/review_log.md`
+- `.clawlab/memory/agent_handoff.md`
+- `.clawlab/memory/decision_log.md`
+- `.clawlab/memory/orchestrator_state.md`
+- `.clawlab/memory/execution_context.md`
+
+## Built-in Research Skills
+
+ClawLab ships with 40 built-in research skills across these categories:
+
+- literature
+- ideation
+- experiment
+- engineering
+- writing
+- review
+- ops
+- planning
+
+Examples include:
+
+- paper-finder, citation-graph-builder, benchmark-discovery
+- hypothesis-generator, novelty-checker, ablation-planner
+- experiment-plan-author, validation-pipeline-designer, remote-experiment-operator
+- scientific-writing, figure-storytelling, reference-auditor
+- reproducibility-audit, statistical-sanity-check, claim-consistency-review
 
 ## Model Connection
 
@@ -267,7 +340,33 @@ Inside the CLI:
 /login
 ```
 
-### 4. Start a research mission
+### 4. (Optional) Scaffold a stage-oriented research workspace
+
+Inside the CLI:
+
+```bash
+/research setup
+```
+
+Use `--force` if you want to overwrite existing scaffold template files.
+
+### 5. Inspect the default Team mode
+
+Inside the CLI:
+
+```bash
+/research team status
+/research team roles
+/research team skills --stage survey
+```
+
+Switch role when needed:
+
+```bash
+/research team switch experiment_driver
+```
+
+### 6. Start a research mission
 
 Inside the CLI:
 
