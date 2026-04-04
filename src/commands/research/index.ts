@@ -4,7 +4,7 @@ const research = {
 	type: 'local',
 	name: 'research',
 	description:
-		'Run the ClawLab Auto Research Loop for new topics or existing-project improvement, with local/SSH execution and configurable model backends',
+		'Run the ClawLab Auto Research Loop with stage scaffolding, Team multi-agent mode, built-in research skills, and local/SSH execution',
 	supportsNonInteractive: true,
 	load: () => import('./research.js'),
 } satisfies Command

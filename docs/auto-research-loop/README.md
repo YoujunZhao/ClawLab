@@ -9,9 +9,9 @@
   </a>
 </p>
 
-![ClawLab CLI demo](./assets/clawlab-cli-demo.svg)
-
 ClawLab is a persistent Auto Research Loop system built on top of a Claude Code CLI source snapshot.
+
+It includes a Team-oriented multi-agent mode, persistent memory scaffolding, and a built-in research skill catalog under `.clawlab/`.
 
 Pick your guide:
 

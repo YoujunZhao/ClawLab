@@ -32,6 +32,60 @@ export class SSHExecutor implements ExperimentExecutor {
 		private readonly localScratchRoot: string,
 	) {}
 
+	private buildSshKeyLauncher(
+		machine: RemoteMachineConfig,
+		program: 'ssh' | 'scp',
+		port: string,
+	): { command: string; args: string[] } {
+		const keyArgs = machine.sshKeyPath ? ['-i', machine.sshKeyPath] : []
+		return {
+			command: program,
+			args:
+				program === 'ssh'
+					? [...keyArgs, '-p', port, `${machine.username}@${machine.host}`]
+					: [...keyArgs, '-P', port],
+		}
+	}
+
+	private async tryBuildWindowsPasswordLauncher(
+		machine: RemoteMachineConfig,
+		program: 'ssh' | 'scp',
+		port: string,
+	): Promise<{ command: string; args: string[] } | undefined> {
+		if (process.platform !== 'win32') {
+			return undefined
+		}
+		if (!(await commandExists('plink'))) {
+			return undefined
+		}
+		return {
+			command: program === 'ssh' ? 'plink' : 'pscp',
+			args:
+				program === 'ssh'
+					? ['-P', port, '-pw', machine.password ?? '', `${machine.username}@${machine.host}`]
+					: ['-P', port, '-pw', machine.password ?? ''],
+		}
+	}
+
+	private async tryBuildSshpassLauncher(
+		machine: RemoteMachineConfig,
+		program: 'ssh' | 'scp',
+		port: string,
+	): Promise<{ command: string; args: string[] } | undefined> {
+		if (!(await commandExists('sshpass'))) {
+			return undefined
+		}
+		return {
+			command: 'sshpass',
+			args: [
+				'-p',
+				machine.password ?? '',
+				program,
+				...(program === 'ssh' ? ['-p', port, `${machine.username}@${machine.host}`] : ['-P', port]),
+			],
+		}
+	}
+
 	private getMachine(target: ExecutionTarget): RemoteMachineConfig {
 		if (target.type !== 'ssh' || !target.machineId) {
 			throw new Error('SSH target requires a machineId')
@@ -49,38 +103,17 @@ export class SSHExecutor implements ExperimentExecutor {
 	): Promise<{ command: string; args: string[] }> {
 		const port = String(machine.port ?? 22)
 		if (machine.authType === 'ssh_key') {
-			const keyArgs = machine.sshKeyPath ? ['-i', machine.sshKeyPath] : []
-			return {
-				command: program,
-				args:
-					program === 'ssh'
-						? [...keyArgs, '-p', port, `${machine.username}@${machine.host}`]
-						: [...keyArgs, '-P', port],
-			}
+			return this.buildSshKeyLauncher(machine, program, port)
 		}
 
-		if (process.platform === 'win32' && (await commandExists('plink'))) {
-			return {
-				command: program === 'ssh' ? 'plink' : 'pscp',
-				args:
-					program === 'ssh'
-						? ['-P', port, '-pw', machine.password ?? '', `${machine.username}@${machine.host}`]
-						: ['-P', port, '-pw', machine.password ?? ''],
-			}
+		const windowsLauncher = await this.tryBuildWindowsPasswordLauncher(machine, program, port)
+		if (windowsLauncher) {
+			return windowsLauncher
 		}
 
-		if (await commandExists('sshpass')) {
-			return {
-				command: 'sshpass',
-				args: [
-					'-p',
-					machine.password ?? '',
-					program,
-					...(program === 'ssh'
-						? ['-p', port, `${machine.username}@${machine.host}`]
-						: ['-P', port]),
-				],
-			}
+		const sshpassLauncher = await this.tryBuildSshpassLauncher(machine, program, port)
+		if (sshpassLauncher) {
+			return sshpassLauncher
 		}
 
 		throw new Error('Password-based SSH requires plink/pscp on Windows or sshpass on POSIX')
