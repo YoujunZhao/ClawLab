@@ -1,4 +1,8 @@
-# ClawLab
+<p align="center">
+  <img alt="ClawLab Logo" src="./docs/auto-research-loop/assets/clawlab-cli-demo.svg" width="220">
+</p>
+
+<h1 align="center">ClawLab</h1>
 
 <p align="center">
   <a href="./docs/auto-research-loop/README.en.md">
@@ -15,94 +19,373 @@
 
 ## What ClawLab Is
 
-ClawLab is not a one-shot deep research chatbot.
+ClawLab is a looped research harness for real project work, not a one-shot chatbot.
 
-ClawLab is not a system that writes a paper every round.
+It keeps running: mission framing -> evidence -> hypothesis -> patch -> validate -> experiment -> reflect -> report, until stop criteria are met.
 
-ClawLab is a looped research harness that keeps doing this until a stop condition is reached:
+## Mode-First Overview
 
-1. frame the mission
-2. research papers, repos, baselines, and failure modes
-3. form hypotheses
-4. create branch-isolated worktrees
-5. patch code
-6. validate before experiments
-7. run experiments locally or on remote SSH GPU machines
-8. debug, reflect, report, and continue automatically
+Start by choosing a mode.
 
-The default behavior is:
+Built-in skill catalog size: **57** skills.
 
-- do research rounds
-- generate structured artifacts
-- write a round report every round
-- continue automatically after reporting
-- only enter summary/report/paper mode after explicit user approval
+| Mode | When to use | Primary entry | Built-in skills (mode bundle) |
+| --- | --- | --- | --- |
+| New Project Mode | You only have an idea/topic | `/research start --mode new ...` | 17 |
+| Project Improvement Mode | You already have a repo and bottleneck | `/research start --mode improve ...` | 18 |
+| Paper Writing Mode | You explicitly want summary/report/paper drafting | `/research summarize paper [sessionId]` | 13 |
+| Rebuttal Mode | You have draft/paper + reviewer comments | Rebuttal workflow over existing project mode | 15 |
 
-## Does It Use Claude Code CLI?
+Notes:
 
-Yes.
+- Mode bundle counts can overlap; one skill can serve multiple modes.
+- Team orchestration remains the same: `team-plan -> team-prd -> team-exec -> team-verify -> team-fix`.
 
-ClawLab is implemented inside this repository and uses the Claude Code CLI command/runtime structure as its foundation. The new `clawlab` binary is a branded alias for the same CLI entrypoint, and the existing `claude` binary is kept for compatibility.
+## Install And Start
 
-That means:
+### 1) Install dependencies
 
-- the interactive shell experience is still Claude Code style
-- ClawLab can reuse the existing `/login` OAuth flow
-- ClawLab can coexist with the repo's existing commands, auth, and tooling
+```bash
+bun install
+```
 
-## Two Starting Modes
+### 2) Start CLI
 
-### 1. Start from a topic or idea
+```bash
+bun src/entrypoints/cli.tsx
+```
 
-Use this when the user gives a topic and wants the system to build the research effort from scratch.
+Or use packaged binary:
+
+```bash
+clawlab
+```
+
+### 3) Optional OAuth login (for Anthropic OAuth provider)
+
+Inside CLI:
+
+```bash
+/login
+```
+
+### 4) Initialize workspace scaffold
+
+Inside CLI:
+
+```bash
+/research setup
+```
+
+If you want to overwrite template files:
+
+```bash
+/research setup --force
+```
+
+### 5) Initialize and inspect Team state
+
+```bash
+/research team init
+/research team status
+/research team roles
+```
+
+## SSH Connection Quick Setup
+
+Use a mission config JSON with `remoteMachines`.
+
+```json
+{
+  "topic": "improve retrieval quality",
+  "missionType": "existing_project_improvement",
+  "repoPath": "/workspace/retriever",
+  "problemStatement": "NDCG@10 plateaued at 0.488",
+  "targetMetric": "ndcg_at_10",
+  "remoteMachines": [
+    {
+      "id": "gpu-a100-01",
+      "host": "10.0.0.12",
+      "port": 22,
+      "username": "ubuntu",
+      "authType": "ssh_key",
+      "sshKeyPath": "~/.ssh/id_ed25519",
+      "remoteWorkspace": "/data/projects/retriever",
+      "pythonEnvType": "conda",
+      "pythonEnvName": "retriever"
+    }
+  ]
+}
+```
+
+Run with config:
+
+```bash
+/research start --config ./mission.improve.ssh.json
+```
+
+Supported SSH patterns:
+
+- SSH key login
+- Password login (`authType: "password"` + `password`)
+- Remote workspace selection (`remoteWorkspace`)
+- Python env selection (`pythonEnvType`, `pythonEnvName`)
+- GPU-aware execution targets via execution planning
+
+## Use Modes After Installation
+
+### New Project Mode
+
+Use when:
+
+- you start from topic/idea only
+- there is no concrete repo bottleneck yet
+
+Command:
 
 ```bash
 /research start --mode new "test-time adaptation for multimodal agents"
 ```
 
-### 2. Improve an existing project
+Mode bundle skills (17):
 
-Use this when the user already has a repo and wants ClawLab to improve it automatically around a concrete bottleneck.
+- paper-finder
+- paper-analyzer
+- citation-graph-builder
+- dataset-discovery
+- benchmark-discovery
+- repo-scout
+- hypothesis-generator
+- novelty-checker
+- feasibility-scorer
+- risk-mapper
+- research-idea-convergence
+- ablation-planner
+- experiment-plan-author
+- validation-pipeline-designer
+- research-pipeline-planner
+- task-prioritization
+- decision-log-maintainer
 
-Typical cases:
+### Project Improvement Mode
 
-- a metric plateaus
-- training is unstable
-- eval is suspicious
-- a regression appeared
-- the pipeline works but results no longer improve
+Use when:
+
+- you already have a repo
+- metrics stagnate / regress / become unstable
+
+Command:
 
 ```bash
 /research start \
   --mode improve \
   --repo /path/to/project \
-  --problem "validation F1 is stuck around 0.72 after epoch 3" \
+  --problem "validation F1 stuck around 0.72" \
   --target-metric f1 \
   --current-metric f1=0.72 \
-  --goal "push F1 beyond 0.76 without a large inference-cost regression" \
-  --focus-file src/train.py \
-  --focus-file configs/train.json
+  --goal "push F1 beyond 0.76"
 ```
 
-## Agent Team Mode
+Mode bundle skills (18):
 
-ClawLab now includes a multi-agent Team mode inspired by patterns from oh-my-paper, oh-my-codex, and oh-my-claudecode, adapted to this repository's research loop.
+- repo-scout
+- benchmark-discovery
+- experiment-plan-author
+- validation-pipeline-designer
+- eval-harness-builder
+- regression-debugger
+- remote-experiment-operator
+- gpu-budget-planner
+- data-quality-auditor
+- profiling-analysis
+- memory-optimization
+- patch-safety-review
+- test-hardening
+- statistical-sanity-check
+- reproducibility-audit
+- methodology-critic
+- claim-consistency-review
+- task-prioritization
 
-Canonical team pipeline:
+### Paper Writing Mode
 
-- team-plan
-- team-prd
-- team-exec
-- team-verify
-- team-fix
+Only run when user explicitly asks to:
+
+- summarize
+- write a final report
+- draft a paper
+- organize results into a paper draft
+
+Goal:
+
+- use completed research artifacts to generate evidence-grounded writing output
+
+Primary entry:
+
+```bash
+/research summarize paper [sessionId]
+```
+
+Inputs:
+
+- mission / topic
+- sources
+- evidence bank
+- runs / metrics
+- figures / tables
+- round reports
+- best-so-far summary
+- optional venue / style / page limit
+
+Phases:
+
+1. Summary Planning
+2. Artifact Aggregation
+3. Narrative Synthesis
+4. Draft Generation
+5. Final Output
+
+If output = paper draft, generate:
+
+- title candidates
+- abstract
+- introduction
+- related work
+- method
+- experiments
+- ablations / analysis
+- limitations
+- conclusion
+
+Rules:
+
+- do not invent experiments
+- do not invent results
+- separate verified findings from interpretation
+- do not overclaim
+
+Mode bundle skills (13):
+
+- paper-outline
+- title-generation
+- abstract-polish
+- related-work-synthesis
+- method-writeup
+- experiment-writeup
+- limitation-writing
+- figure-caption-writing
+- paper-structure-planner
+- scientific-writing
+- result-summarizer
+- reference-auditor
+- claim-consistency-review
+
+### Rebuttal Mode
+
+Only run when user provides:
+
+- paper / draft / PDF / LaTeX
+- reviewer comments
+
+Goal:
+
+- support full rebuttal flow: paper + reviews -> analysis -> experiments if needed -> rebuttal draft
+
+Recommended entry workflow:
+
+1. Start from existing project mode with rebuttal concern as problem statement.
+2. Switch to reviewer role and run concern decomposition + evidence mapping skills.
+3. Run extra experiments only when concern typing marks evidence gaps.
+4. Draft point-by-point response and revision plan.
+
+Example command pattern:
+
+```bash
+/research start \
+  --mode improve \
+  --repo /path/to/project \
+  --problem "Rebuttal round: reviewers requested stronger baselines and ablations"
+```
+
+Then inside the same session:
+
+```bash
+/research team switch reviewer
+/research team skills --category review
+/research summarize report [sessionId]
+```
+
+Phases:
+
+1. Review Parse
+2. Concern Decomposition
+3. Concern Typing
+4. Action Decision
+5. Rebuttal Experiment Planning
+6. Rebuttal Experiment Execution
+7. Evidence Mapping
+8. Rebuttal Drafting
+9. Revision Plan Output
+
+Concern types:
+
+- misunderstanding
+- missing explanation
+- missing citation
+- weak baseline
+- weak ablation
+- missing experiment
+- statistical weakness
+- writing clarity issue
+- overclaiming
+- limitation not acknowledged
+
+Rules:
+
+- answer concerns directly
+- use evidence-grounded language
+- do not claim fixes without evidence
+- if new experiments are run, clearly state what was added and what changed
+- if unresolved, acknowledge limitation honestly
+
+Target outputs:
+
+- parsed_reviews.json
+- concern_items.json
+- rebuttal_action_plan.json
+- rebuttal_experiment_plan.json
+- rebuttal_evidence_map.json
+- rebuttal_draft.md
+- point_by_point_response.md
+- revision_plan.md
+
+Mode bundle skills (15):
+
+- review-parse
+- concern-decompose
+- concern-typing
+- rebuttal-strategy
+- rebuttal-experiment-gap
+- rebuttal-evidence-mapping
+- reviewer-response-writing
+- point-by-point-response
+- revision-plan-writing
+- rebuttal-drafter
+- experiment-plan-author
+- validation-pipeline-designer
+- statistical-sanity-check
+- claim-consistency-review
+- limitation-writing
+
+## Team, Memory, Skills
 
 Default team roles:
 
-- conductor: global planning, dispatch, and stage transitions
-- literature_scout: paper/repo search and evidence curation
-- experiment_driver: patch/validate/run/debug loop owner
-- paper_writer: report/paper narrative and figure-ready outputs
-- reviewer: methodology/statistics/reproducibility quality gate
+- conductor
+- literature_scout
+- experiment_driver
+- paper_writer
+- reviewer
 
 Team command surface:
 
@@ -114,17 +397,13 @@ Team command surface:
 /research team skills --stage experiment
 ```
 
-## Memory System
+Durable state under `.clawlab/`:
 
-The Team mode writes durable shared state under `.clawlab/`.
-
-Key files:
-
-- `.clawlab/tasks/tasks.json`: stage-level task tree and active stage
-- `.clawlab/docs/research_brief.json`: mission brief and constraints
-- `.clawlab/team/team-config.json`: role definitions and team pipeline
-- `.clawlab/team/team-state.json`: active role and role switch history
-- `.clawlab/skills/catalog.json`: built-in research skill catalog
+- `.clawlab/tasks/tasks.json`
+- `.clawlab/docs/research_brief.json`
+- `.clawlab/team/team-config.json`
+- `.clawlab/team/team-state.json`
+- `.clawlab/skills/catalog.json`
 
 Core memory files:
 
@@ -138,42 +417,17 @@ Core memory files:
 - `.clawlab/memory/orchestrator_state.md`
 - `.clawlab/memory/execution_context.md`
 
-## Built-in Research Skills
-
-ClawLab ships with 40 built-in research skills across these categories:
-
-- literature
-- ideation
-- experiment
-- engineering
-- writing
-- review
-- ops
-- planning
-
-Examples include:
-
-- paper-finder, citation-graph-builder, benchmark-discovery
-- hypothesis-generator, novelty-checker, ablation-planner
-- experiment-plan-author, validation-pipeline-designer, remote-experiment-operator
-- scientific-writing, figure-storytelling, reference-auditor
-- reproducibility-audit, statistical-sanity-check, claim-consistency-review
-
 ## Model Connection
-
-ClawLab now supports first-class research-layer model connections.
 
 Supported providers:
 
-- `auto`: reuse Claude CLI OAuth if available, otherwise try Anthropic API key, otherwise fall back to stub mode
-- `anthropic_oauth`: use the existing Claude/Anthropic OAuth session from the CLI
-- `anthropic_api_key`: use an Anthropic API key from an environment variable
-- `openai_compatible`: use any OpenAI-compatible `/chat/completions` endpoint
-- `stub`: deterministic fallback with no live model calls
+- `auto`
+- `anthropic_oauth`
+- `anthropic_api_key`
+- `openai_compatible`
+- `stub`
 
-This also covers user-owned model stacks behind OpenAI-compatible gateways such as OpenAI, OpenRouter, vLLM, LM Studio, or self-hosted routing services.
-
-Supported model flags on `/research start`:
+Common flags on `/research start`:
 
 - `--model-provider <auto|stub|anthropic-oauth|anthropic-api-key|openai-compatible>`
 - `--model <model-name>`
@@ -182,91 +436,21 @@ Supported model flags on `/research start`:
 - `--model-api-key-env <ENV_VAR>`
 - `--model-display-name <friendly-name>`
 
-### Example: Reuse Claude CLI OAuth
-
-Start the CLI, run `/login`, then launch research with:
+## Common Commands
 
 ```bash
-/research start \
-  --mode new \
-  --model-provider anthropic-oauth \
-  --model claude-sonnet-4-6 \
-  "robust planning for browser agents"
+/research setup [--force]
+/research start [flags] [topic]
+/research status [sessionId]
+/research pause [sessionId]
+/research resume [sessionId]
+/research summarize [paper|report|summary] [sessionId]
+/research archive [sessionId]
 ```
 
-### Example: OpenAI-compatible backend
+## Artifacts
 
-```bash
-/research start \
-  --mode improve \
-  --repo /workspace/ranker \
-  --problem "NDCG@10 plateaued" \
-  --model-provider openai-compatible \
-  --model gpt-4.1-mini \
-  --model-base-url https://api.openai.com/v1 \
-  --model-api-key-env OPENAI_API_KEY
-```
-
-### Example JSON config
-
-```json
-{
-  "topic": "improve the existing ranking model",
-  "missionType": "existing_project_improvement",
-  "repoPath": "/workspace/ranker",
-  "problemStatement": "NDCG@10 has plateaued at 0.488 for the last 5 runs",
-  "targetMetric": "ndcg_at_10",
-  "currentMetricsSnapshot": { "ndcg_at_10": 0.488, "latency_ms": 82.4 },
-  "improvementGoal": "reach 0.51+ NDCG@10 without major latency regression",
-  "preferredFocusFiles": ["src/train.py", "src/losses.py", "configs/base.json"],
-  "modelConnection": {
-    "provider": "openai_compatible",
-    "model": "gpt-4.1-mini",
-    "baseUrl": "https://api.openai.com/v1",
-    "apiKeyEnvVar": "OPENAI_API_KEY",
-    "taskModels": {
-      "research": "gpt-4.1-mini",
-      "summary": "gpt-4.1"
-    }
-  }
-}
-```
-
-## OAuth Sign-In
-
-ClawLab does support OAuth sign-in, but it does it the pragmatic way: it reuses the existing Claude Code CLI login flow instead of inventing a separate auth stack.
-
-Workflow:
-
-1. launch `clawlab` or `claude`
-2. run `/login`
-3. finish the Claude/Anthropic OAuth flow
-4. start `/research ... --model-provider anthropic-oauth`
-
-This makes the research loop work naturally inside the same CLI session and avoids duplicating credentials in ClawLab session artifacts.
-
-## Remote GPU / SSH Execution
-
-Remote SSH execution is a first-class backend.
-
-ClawLab supports:
-
-- SSH key login
-- password login
-- remote workspace selection
-- conda or venv environment selection
-- `CUDA_VISIBLE_DEVICES`
-- foreground short runs
-- background full runs
-- log streaming
-- status checks
-- artifact collection
-
-The execution layer is abstracted through local and SSH executors, so local and remote experiment flows share the same high-level planning interface.
-
-## Research Artifacts
-
-Each session writes durable artifacts under:
+Session outputs are written under:
 
 ```text
 workspace/sessions/<sessionId>/
@@ -277,8 +461,6 @@ Key outputs include:
 - `mission/mission.md`
 - `mission/success_criteria.json`
 - `mission/budget.json`
-- `mission/improvement_brief.json`
-- `mission/safety_checklist.json`
 - `mission/model_connection.json`
 - `sources/sources.jsonl`
 - `evidence/evidence_bank.jsonl`
@@ -290,93 +472,7 @@ Key outputs include:
 - `reports/research_index.md`
 - `reports/round_XXX.md`
 
-## Round Report Format
-
-Each round writes a research round report with exactly 11 sections:
-
-1. round objective
-2. research findings
-3. new evidence
-4. code changes
-5. experiments
-6. key results
-7. failures and fixes
-8. current best-so-far
-9. current uncertainties
-10. next-round plan
-11. execution environment
-
-The normal path is:
-
-`REPORTING -> RESEARCH_LOOP`
-
-ClawLab reports for transparency, not for stopping.
-
-## Quick Start
-
-### 1. Install dependencies
-
-```bash
-bun install
-```
-
-### 2. Start the CLI
-
-```bash
-bun src/entrypoints/cli.tsx
-```
-
-If you package it or install it globally, you can use:
-
-```bash
-clawlab
-```
-
-### 3. Login if you want OAuth-backed model access
-
-Inside the CLI:
-
-```bash
-/login
-```
-
-### 4. (Optional) Scaffold a stage-oriented research workspace
-
-Inside the CLI:
-
-```bash
-/research setup
-```
-
-Use `--force` if you want to overwrite existing scaffold template files.
-
-### 5. Inspect the default Team mode
-
-Inside the CLI:
-
-```bash
-/research team status
-/research team roles
-/research team skills --stage survey
-```
-
-Switch role when needed:
-
-```bash
-/research team switch experiment_driver
-```
-
-### 6. Start a research mission
-
-Inside the CLI:
-
-```bash
-/research start --mode new "adaptive planning for browser agents"
-```
-
 ## Validation
-
-Use the focused ClawLab checks when you want signal on the new research-loop code without getting buried by unrelated legacy issues elsewhere in the repo:
 
 ```bash
 bun run lint:clawlab
