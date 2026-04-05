@@ -1,0 +1,28 @@
+<svg width="1440" height="920" viewBox="0 0 1440 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1440" height="920" rx="28" fill="#0B1020"/>
+  <rect x="36" y="34" width="1368" height="852" rx="24" fill="#11182B" stroke="#24324F" stroke-width="2"/>
+  <circle cx="86" cy="83" r="10" fill="#FF5F57"/>
+  <circle cx="118" cy="83" r="10" fill="#FEBC2E"/>
+  <circle cx="150" cy="83" r="10" fill="#28C840"/>
+  <text x="198" y="91" fill="#DCE7FF" font-family="Consolas, Menlo, Monaco, monospace" font-size="26">ClawLab terminal demo</text>
+  <text x="70" y="146" fill="#75A7FF" font-family="Consolas, Menlo, Monaco, monospace" font-size="24">$ clawlab</text>
+  <text x="70" y="192" fill="#C7D5F6" font-family="Consolas, Menlo, Monaco, monospace" font-size="22">/login</text>
+  <text x="70" y="228" fill="#8EE6A5" font-family="Consolas, Menlo, Monaco, monospace" font-size="22">OAuth session ready (Claude CLI auth reused)</text>
+  <text x="70" y="274" fill="#C7D5F6" font-family="Consolas, Menlo, Monaco, monospace" font-size="22">/research start --mode improve --repo /workspace/ranker --problem "NDCG@10 plateaued"</text>
+  <text x="70" y="310" fill="#C7D5F6" font-family="Consolas, Menlo, Monaco, monospace" font-size="22">  --target-metric ndcg_at_10 --current-metric ndcg_at_10=0.488</text>
+  <text x="70" y="346" fill="#C7D5F6" font-family="Consolas, Menlo, Monaco, monospace" font-size="22">  --model-provider openai-compatible --model gpt-4.1-mini</text>
+  <text x="70" y="382" fill="#C7D5F6" font-family="Consolas, Menlo, Monaco, monospace" font-size="22">  --model-base-url https://api.openai.com/v1 --model-api-key-env OPENAI_API_KEY</text>
+  <rect x="68" y="424" width="1304" height="390" rx="18" fill="#0A1324" stroke="#22314D"/>
+  <text x="96" y="468" fill="#F6D365" font-family="Consolas, Menlo, Monaco, monospace" font-size="24">Round 003 report</text>
+  <text x="96" y="510" fill="#DCE7FF" font-family="Consolas, Menlo, Monaco, monospace" font-size="20">1. Objective</text>
+  <text x="128" y="538" fill="#AFC2E6" font-family="Consolas, Menlo, Monaco, monospace" font-size="18">- Validate whether the ranking loss bottleneck is in the hard-negative sampler.</text>
+  <text x="96" y="578" fill="#DCE7FF" font-family="Consolas, Menlo, Monaco, monospace" font-size="20">2. Research findings</text>
+  <text x="128" y="606" fill="#AFC2E6" font-family="Consolas, Menlo, Monaco, monospace" font-size="18">- Repo reconnaissance shows sampler logic concentrated in src/losses.py and configs/base.json.</text>
+  <text x="96" y="646" fill="#DCE7FF" font-family="Consolas, Menlo, Monaco, monospace" font-size="20">3. Experiment</text>
+  <text x="128" y="674" fill="#AFC2E6" font-family="Consolas, Menlo, Monaco, monospace" font-size="18">- smoke -> short run -> background full run via SSH on gpu-a100-01, CUDA_VISIBLE_DEVICES=0</text>
+  <text x="96" y="714" fill="#DCE7FF" font-family="Consolas, Menlo, Monaco, monospace" font-size="20">4. Best-so-far</text>
+  <text x="128" y="742" fill="#AFC2E6" font-family="Consolas, Menlo, Monaco, monospace" font-size="18">- ndcg_at_10 improved from 0.488 to 0.497 on the mainline branch without latency regression.</text>
+  <text x="96" y="782" fill="#DCE7FF" font-family="Consolas, Menlo, Monaco, monospace" font-size="20">5. Next round</text>
+  <text x="128" y="810" fill="#AFC2E6" font-family="Consolas, Menlo, Monaco, monospace" font-size="18">- Exploit the sampler change, tighten metric parsing, and compare against the previous best checkpoint.</text>
+  <text x="950" y="146" fill="#7BE0C3" font-family="Consolas, Menlo, Monaco, monospace" font-size="22">Built on Claude Code CLI internals</text>
+</svg>

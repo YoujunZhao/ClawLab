@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ClawLab | Autonomous Research Loop</title>
+    <meta
+      name="description"
+      content="ClawLab is a persistent research loop harness with multi-agent team orchestration, mode-first workflows, and local/SSH execution."
+    />
+    <link rel="icon" href="./assets/clawlab-logo.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="bg-grid"></div>
+    <header class="hero">
+      <nav class="top-nav">
+        <a class="brand" href="#top">ClawLab</a>
+        <div class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#modes">Modes</a>
+          <a href="#quickstart">Quick Start</a>
+          <a href="#docs">Docs</a>
+          <a href="https://github.com/YoujunZhao/ClawLab" target="_blank" rel="noreferrer">GitHub</a>
+        </div>
+      </nav>
+
+      <section class="hero-content" id="top">
+        <img class="logo" src="./assets/clawlab-logo.svg" alt="ClawLab logo" />
+        <p class="eyebrow">Autonomous Research Loop</p>
+        <h1>One CLI. A Full Research Team.</h1>
+        <p class="subtitle">
+          ClawLab runs a continuous research loop from mission framing to evidence-backed reporting,
+          with multi-agent team roles, durable memory, and local or SSH/GPU execution.
+        </p>
+        <div class="cta-row">
+          <a class="btn primary" href="https://github.com/YoujunZhao/ClawLab" target="_blank" rel="noreferrer">Open Repository</a>
+          <a class="btn" href="#quickstart">Get Started</a>
+        </div>
+      </section>
+
+      <section class="stats" aria-label="Project highlights">
+        <article>
+          <h3>57</h3>
+          <p>Built-in skills</p>
+        </article>
+        <article>
+          <h3>4</h3>
+          <p>Core modes</p>
+        </article>
+        <article>
+          <h3>5</h3>
+          <p>Team roles</p>
+        </article>
+        <article>
+          <h3>2</h3>
+          <p>Execution backends (Local + SSH)</p>
+        </article>
+      </section>
+    </header>
+
+    <main class="container">
+      <section id="features" class="panel">
+        <h2>Key Features</h2>
+        <div class="card-grid">
+          <article class="card">
+            <h3>Mode-First Workflows</h3>
+            <p>Use New, Improve, Paper, and Rebuttal modes to drive consistent outcomes end to end.</p>
+          </article>
+          <article class="card">
+            <h3>Multi-Agent Team Loop</h3>
+            <p>Conductor + specialists collaborate across team-plan, team-prd, team-exec, team-verify, team-fix.</p>
+          </article>
+          <article class="card">
+            <h3>Durable Research Memory</h3>
+            <p>Shared artifacts and decision logs persist in .clawlab for resumable and auditable research sessions.</p>
+          </article>
+          <article class="card">
+            <h3>Research-Grade Execution</h3>
+            <p>Patch, validate, run, debug, and report with local and remote SSH/GPU execution targets.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="modes" class="panel">
+        <h2>Research Modes</h2>
+        <div class="mode-grid">
+          <article class="mode">
+            <h3>New Project</h3>
+            <p>Start from a topic and build a research direction from scratch.</p>
+            <code>/research start --mode new "topic"</code>
+          </article>
+          <article class="mode">
+            <h3>Project Improvement</h3>
+            <p>Improve an existing repository around a concrete bottleneck.</p>
+            <code>/research start --mode improve --repo /path --problem "..."</code>
+          </article>
+          <article class="mode">
+            <h3>Paper Writing</h3>
+            <p>Generate structured paper drafts only when explicitly requested.</p>
+            <code>/research summarize paper [sessionId]</code>
+          </article>
+          <article class="mode">
+            <h3>Rebuttal</h3>
+            <p>Map reviewer concerns to evidence and produce point-by-point responses.</p>
+            <code>/research team switch reviewer</code>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Showcase Starters</h2>
+        <div class="card-grid">
+          <article class="card">
+            <h3>New Project Seed</h3>
+            <p>Bootstrap a fresh research topic from scratch with mission framing and early evidence loops.</p>
+            <p><a href="https://github.com/YoujunZhao/ClawLab/blob/main/docs/auto-research-loop/examples/new-project.json" target="_blank" rel="noreferrer">View starter config</a></p>
+          </article>
+          <article class="card">
+            <h3>Improve Existing Repo</h3>
+            <p>Target bottlenecks, run patch-validate cycles, and iterate toward measurable metric gains.</p>
+            <p><a href="https://github.com/YoujunZhao/ClawLab/blob/main/docs/auto-research-loop/examples/improve-existing-project.json" target="_blank" rel="noreferrer">View improvement config</a></p>
+          </article>
+        </div>
+      </section>
+
+      <section id="quickstart" class="panel">
+        <h2>Quick Start</h2>
+        <div class="code-block">
+<pre><code>bun install
+bun src/entrypoints/cli.tsx
+
+# inside CLI
+/research setup
+/research team init
+/research start --mode new "adaptive planning for browser agents"</code></pre>
+        </div>
+      </section>
+
+      <section id="docs" class="panel">
+        <h2>Documentation & References</h2>
+        <ul class="link-list">
+          <li><a href="https://github.com/YoujunZhao/ClawLab/blob/main/README.md" target="_blank" rel="noreferrer">Main README</a></li>
+          <li><a href="https://github.com/YoujunZhao/ClawLab/blob/main/docs/auto-research-loop/README.en.md" target="_blank" rel="noreferrer">Auto Research Loop (English)</a></li>
+          <li><a href="https://github.com/YoujunZhao/ClawLab/blob/main/docs/auto-research-loop/README.zh-CN.md" target="_blank" rel="noreferrer">自动科研循环指南（中文）</a></li>
+          <li><a href="https://github.com/YoujunZhao/ClawLab/blob/main/docs/architecture.md" target="_blank" rel="noreferrer">Architecture Notes</a></li>
+        </ul>
+      </section>
+
+      <section class="panel compact">
+        <h2>Updates</h2>
+        <ul class="updates">
+          <li><strong>2026-04-05</strong> Added mode-first docs and team skill expansion (57 skills).</li>
+          <li><strong>2026-04-05</strong> Added GitHub Pages project website and automated deployment workflow.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>ClawLab · Persistent Auto Research Loop</p>
+      <p><a href="https://github.com/YoujunZhao/ClawLab" target="_blank" rel="noreferrer">GitHub Repository</a></p>
+    </footer>
+  </body>
+</html>

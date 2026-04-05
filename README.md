@@ -14,8 +14,24 @@
 </p>
 
 <p align="center">
+  <a href="https://youjunzhao.github.io/ClawLab/">
+    <img alt="Project Website" src="https://img.shields.io/badge/Website-GitHub%20Pages-0f8f5c?style=for-the-badge&logo=github">
+  </a>
+</p>
+
+<p align="center">
   <strong>ClawLab</strong> is a persistent Auto Research Loop system built on top of a Claude Code CLI source snapshot.
 </p>
+
+## Project Website
+
+ClawLab now includes a GitHub Pages project site:
+
+- Website: https://youjunzhao.github.io/ClawLab/
+- Source: `site/`
+- Deploy workflow: `.github/workflows/deploy-pages.yml`
+
+After you enable Pages in repository settings (`Build and deployment: GitHub Actions`), pushes to `main`, `master`, or `codex/publishable-main` will auto-deploy the website.
 
 ## What ClawLab Is
 
