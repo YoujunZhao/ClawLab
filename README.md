@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="ClawLab Logo" src="./docs/auto-research-loop/assets/clawlab-cli-demo.svg" width="220">
+  <img alt="ClawLab Logo" src="./docs/auto-research-loop/assets/clawlab.png" width="220">
 </p>
 
 <h1 align="center">ClawLab</h1>
