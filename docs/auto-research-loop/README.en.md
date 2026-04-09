@@ -1,470 +1,263 @@
-# ClawLab
+# ClawLab Guide
 
-<p align="center">
-  <a href="./README.en.md">
-    <img alt="English" src="https://img.shields.io/badge/Language-English-0A66C2?style=for-the-badge">
-  </a>
-  <a href="./README.zh-CN.md">
-    <img alt="中文" src="https://img.shields.io/badge/Language-Chinese-1F883D?style=for-the-badge">
-  </a>
-</p>
+## What this guide covers
 
-## Overview
+This guide is the practical usage manual for the current ClawLab implementation.
 
-ClawLab is a persistent, resumable, interruptible Auto Research Loop system built on top of a Claude Code CLI source snapshot.
+It focuses on:
 
-It is designed for two kinds of starting points:
+- what is already runnable
+- how to start research missions
+- how to wire native integrations
+- how to use the rebuttal pipeline
+- how to use executable local skills
+- how to verify changes honestly
 
-1. `new_project`: start from a topic or idea and build the research effort from scratch.
-2. `existing_project_improvement`: take an existing repository plus a concrete bottleneck and improve it automatically.
+## Current stable command surface
 
-The default behavior is:
-
-- keep doing research rounds
-- keep writing structured artifacts
-- keep reporting every round
-- keep continuing after reporting
-- do not write the final summary/report/paper until the user explicitly asks
-
-## Is this Claude Code CLI?
-
-Yes, structurally.
-
-ClawLab is implemented inside this repo and uses the Claude Code CLI command/runtime architecture as its base. The project now exposes a `clawlab` binary alias while preserving the existing `claude` compatibility path.
-
-That means ClawLab can reuse:
-
-- the existing CLI UX
-- the existing `/login` OAuth flow
-- the repo's command infrastructure
-- the repo's auth/session handling
-
-## Three Layers
-
-### Layer 1. Harness
-
-Responsible for:
-
-- tool registry
-- permission engine
-- task runtime
-- state machine
-- memory store
-- trace logging
-- artifact store
-- model router
-- MCP integration placeholder
-
-### Layer 2. Auto Research Loop Engine
-
-Responsible for:
-
-- mission framing
-- literature and repo reconnaissance
-- hypothesis generation
-- branch selection
-- patch planning
-- code editing
-- validation
-- experiment execution
-- debugging
-- reflection
-- replanning
-
-### Layer 3. Final Summarize / Writeup Engine
-
-Only runs when the user explicitly asks for:
-
-- summary
-- final report
-- paper draft
-
-## State Model
-
-Top-level states:
-
-- `IDLE`
-- `MISSION_FRAMING`
-- `RESEARCH_LOOP`
-- `REPORTING`
-- `WAITING_FOR_RESOURCES`
-- `PAUSED`
-- `READY_FOR_SUMMARIZATION`
-- `FINAL_SUMMARIZATION`
-- `ARCHIVED`
-
-Research states:
-
-- `RESEARCHING`
-- `FORMING_HYPOTHESES`
-- `BRANCH_SELECTION`
-- `PLANNING_PATCH`
-- `PATCHING`
-- `VALIDATING`
-- `RUNNING_EXPERIMENT`
-- `DEBUGGING`
-- `REFLECTING`
-- `RESEARCH_ROUND_DONE`
-
-The normal path is:
-
-`MISSION_FRAMING -> RESEARCH_LOOP -> REPORTING -> RESEARCH_LOOP`
-
-Reporting is for transparency, not for stopping.
-
-## Standard Round Discipline
-
-Every serious run is expected to follow:
-
-1. patch
-2. static check
-3. smoke run
-4. short run
-5. full run
-6. analysis
-
-ClawLab does not treat full runs as the first validation step.
-
-## Usage Mode A: Start From a Topic
-
-Use this when you want ClawLab to bootstrap the research effort from scratch.
+### Research loop
 
 ```bash
-/research start --mode new "test-time adaptation for multimodal agents"
+/research setup
+/research start --mode new "topic"
+/research start --mode improve --repo /path --problem "..."
+/research status
+/research pause
+/research resume
+/research summarize report
 ```
 
-## Usage Mode B: Improve an Existing Project
-
-Use this when a real repo already exists and you want ClawLab to improve it around a concrete problem.
-
-Typical cases:
-
-- validation accuracy is stuck
-- F1 no longer improves
-- reward model plateaus
-- training is unstable
-- evaluation looks suspicious
-- a recent patch introduced regression
+### Native integrations
 
 ```bash
-/research start \
-  --mode improve \
-  --repo /path/to/project \
-  --problem "validation F1 is stuck around 0.72 after epoch 3" \
-  --target-metric f1 \
-  --current-metric f1=0.72 \
-  --goal "push F1 beyond 0.76 without a large inference-cost regression" \
-  --focus-file src/train.py \
-  --focus-file configs/train.json
+/research integration status
+/research integration doctor
+/research integration doctor codex
+/research integration init codex
+/research integration init claude-code
+/research integration init openclaw
 ```
 
-If no topic is supplied in improvement mode, the command derives one from the problem or target metric.
+### Rebuttal workflow
 
-## Model Connection
+```bash
+/research rebuttal init
+/research rebuttal plan --paper paper.pdf --review review1.pdf --review review2.txt --repo /path/to/repo --venue neurips
+/research rebuttal draft --run-dir /path/to/run
+/research rebuttal validate --draft /path/to/rebuttal_draft.md --venue neurips
+```
 
-ClawLab includes a research-layer model router with these providers:
+### Executable skills
 
-- `auto`
-- `stub`
-- `anthropic_oauth`
-- `anthropic_api_key`
-- `openai_compatible`
+```bash
+/research skills list
+/research skills show integration-doctor
+/research skills run integration-doctor
+/research skills run review-concern-extract --review review.pdf
+```
 
-`auto` tries:
+## Step-by-step
 
-1. the current Claude CLI OAuth session
-2. an Anthropic API key
-3. stub fallback
+### 1. Install and launch
 
-You can also connect your own model endpoint as long as it exposes an OpenAI-compatible `/chat/completions` API. That covers common setups such as OpenAI, OpenRouter, vLLM, LM Studio, and self-hosted gateways.
+```bash
+bun install
+bun src/entrypoints/cli.tsx
+```
 
-### Supported flags
-
-- `--model-provider <auto|stub|anthropic-oauth|anthropic-api-key|openai-compatible>`
-- `--model <model-name>`
-- `--task-model <research|code|report|summary>=<model-name>`
-- `--model-base-url <url>`
-- `--model-api-key-env <ENV_VAR>`
-- `--model-display-name <friendly-name>`
-
-### Anthropic OAuth example
-
-First, start the CLI and run:
+Optional:
 
 ```bash
 /login
 ```
 
-Then:
+Use `/login` only if you want Anthropic OAuth-backed model routing.
+
+### 2. Initialize the local workspace
 
 ```bash
-/research start \
-  --mode new \
-  --model-provider anthropic-oauth \
-  --model claude-sonnet-4-6 \
-  "browser-agent planning under noisy observations"
+/research setup
 ```
 
-### Anthropic API key example
+This creates the `.clawlab/` workspace used by:
+
+- task tracking
+- integration templates
+- rebuttal runs
+- skill run artifacts
+- memory files
+
+### 3. Choose your main path
+
+#### Path A: research from a topic
 
 ```bash
-export ANTHROPIC_API_KEY=...
-/research start --mode new --model-provider anthropic-api-key --model claude-sonnet-4-6 "multimodal routing"
+/research start --mode new "robust planning for browser agents"
 ```
 
-### OpenAI-compatible example
+#### Path B: improve an existing project
 
 ```bash
 /research start \
   --mode improve \
   --repo /workspace/ranker \
-  --problem "NDCG@10 plateaued" \
-  --model-provider openai-compatible \
-  --model gpt-4.1-mini \
-  --model-base-url https://api.openai.com/v1 \
-  --model-api-key-env OPENAI_API_KEY
+  --problem "NDCG@10 plateaued at 0.488" \
+  --target-metric ndcg_at_10 \
+  --current-metric ndcg_at_10=0.488 \
+  --goal "reach 0.51+ without major latency regression"
 ```
 
-### JSON config example
+#### Path C: rebuttal work
 
-```json
-{
-  "topic": "improve the existing ranking model",
-  "missionType": "existing_project_improvement",
-  "repoPath": "/workspace/ranker",
-  "problemStatement": "NDCG@10 has plateaued at 0.488 for the last 5 runs",
-  "targetMetric": "ndcg_at_10",
-  "currentMetricsSnapshot": { "ndcg_at_10": 0.488, "latency_ms": 82.4 },
-  "improvementGoal": "reach 0.51+ NDCG@10 without major latency regression",
-  "preferredFocusFiles": ["src/train.py", "src/losses.py", "configs/base.json"],
-  "modelConnection": {
-    "provider": "openai_compatible",
-    "model": "gpt-4.1-mini",
-    "baseUrl": "https://api.openai.com/v1",
-    "apiKeyEnvVar": "OPENAI_API_KEY",
-    "taskModels": {
-      "research": "gpt-4.1-mini",
-      "summary": "gpt-4.1"
-    }
-  }
-}
-```
-
-## OAuth Sign-In
-
-ClawLab supports OAuth sign-in by reusing the existing Claude Code CLI login flow.
-
-This is the intended path for `anthropic_oauth`:
-
-1. start `clawlab` or `claude`
-2. run `/login`
-3. complete the OAuth flow
-4. run `/research ... --model-provider anthropic-oauth`
-
-This keeps auth unified and avoids storing extra tokens inside research session artifacts.
-
-## SSH / Remote GPU Workflow
-
-Remote execution is a first-class backend.
-
-ClawLab supports:
-
-- SSH key login
-- password login
-- remote workspace path
-- conda or venv environment selection
-- `CUDA_VISIBLE_DEVICES`
-- background jobs
-- log streaming
-- status polling
-- artifact collection
-
-The executor layer abstracts:
-
-- local execution
-- SSH execution
-
-This makes it possible to plan a run once and choose local or remote targets later in the loop.
-
-## Commands
-
-### Setup
+Use this when you already have a paper/draft plus reviewer comments.
 
 ```bash
-/research setup [--force]
+/research rebuttal plan \
+  --paper /workspace/paper.pdf \
+  --review /workspace/review1.pdf \
+  --review /workspace/review2.txt \
+  --repo /workspace/project \
+  --venue cvpr
 ```
 
-Creates a stage-oriented scaffold (`paper/`, `experiment/`, `survey/`, `ideation/`, `promotion/`, `skills/`) and `.clawlab/` shared state files inspired by structured research plugins.
-
-Use `--force` to overwrite existing scaffold template files.
-
-### Team
+Then:
 
 ```bash
-/research team <subcommand>
+/research rebuttal draft --run-dir /workspace/.clawlab/rebuttal/runs/run_...
+/research rebuttal validate --draft /workspace/.clawlab/rebuttal/runs/run_.../rebuttal_draft.md --venue cvpr
 ```
 
-Subcommands:
+## Native integration details
 
-- `init [--force]`: initialize team config, team state, and built-in skill catalog
-- `status`: show active stage, active role, and next commands
-- `roles`: list default agent team roles and role memory scopes
-- `switch <role>`: switch active role (`conductor`, `literature_scout`, `experiment_driver`, `paper_writer`, `reviewer`)
-- `skills [role] [--stage <stage>] [--category <name>]`: query built-in research skills
-- `help`: print team command help
+ClawLab currently treats Codex, Claude Code, and OpenClaw as **native integration targets**, not as vague marketing labels.
 
-### Start
+### Codex integration
 
-```bash
-/research start [flags] [topic]
-```
+What ClawLab can do now:
 
-### Resume
+- detect `codex` on `PATH`
+- detect `~/.codex/config.toml`
+- detect `~/.codex/auth.json` or `OPENAI_API_KEY`
+- generate `.codex/AGENTS.md`
+- generate `.codex/config.toml`
 
-```bash
-/research resume [sessionId]
-```
+### Claude Code integration
 
-### Pause
+What ClawLab can do now:
 
-```bash
-/research pause [sessionId]
-```
+- detect `claude` on `PATH`
+- detect `~/.claude/settings.json` or `~/.claude/settings.local.json`
+- generate `.claude/agents/clawlab-research.md`
+- generate `.claude/settings.local.json`
 
-### Status
+Important limitation:
 
-```bash
-/research status [sessionId]
-```
+- ClawLab does **not** claim that a valid interactive Claude login exists from static file checks alone.
 
-### Summarize
+### OpenClaw integration
 
-```bash
-/research summarize [sessionId] [summary|report|paper]
-```
+What ClawLab can do now:
 
-This is the explicit opt-in switch for final summarization and writing.
+- detect `openclaw` on `PATH`
+- detect `~/.openclaw/openclaw.json`
+- inspect auth/profile hints in config
+- generate `.openclaw/clawlab.project.json5`
+- generate `.openclaw/README.md`
 
-### Archive
+## Rebuttal pipeline details
 
-```bash
-/research archive [sessionId]
-```
+### Inputs
 
-## Team Memory and Skills
+- a manuscript PDF or text file
+- one or more review PDFs or text files
+- an optional local repo path
+- a venue preset
 
-Team mode persists orchestration state under `.clawlab/`:
+### Outputs
 
-- `.clawlab/team/team-config.json`
-- `.clawlab/team/team-state.json`
-- `.clawlab/skills/catalog.json`
-- `.clawlab/tasks/tasks.json`
-- `.clawlab/docs/research_brief.json`
+Per run, ClawLab writes:
 
-Core team memory files:
+- extracted paper text
+- extracted review text
+- concern map
+- venue policy snapshot
+- repo evidence map
+- rebuttal plan
+- rebuttal draft
+- validation report
 
-- `.clawlab/memory/project_truth.md`
-- `.clawlab/memory/orchestrator_state.md`
-- `.clawlab/memory/execution_context.md`
-- `.clawlab/memory/literature_bank.md`
-- `.clawlab/memory/experiment_ledger.md`
-- `.clawlab/memory/result_summary.md`
-- `.clawlab/memory/review_log.md`
-- `.clawlab/memory/agent_handoff.md`
-- `.clawlab/memory/decision_log.md`
+### Venue presets
 
-Built-in skill catalog includes 40 research skills across:
+Built-in presets:
 
-- literature
-- ideation
-- experiment
-- engineering
-- writing
-- review
-- ops
-- planning
+- `cvpr`
+- `neurips`
+- `iclr`
+- `acl_arr`
+- `generic`
 
-## Validation
+Current policy handling includes:
 
-Use the focused ClawLab checks when you want signal on the new research-loop code without getting buried by unrelated legacy issues elsewhere in the repo:
+- character limits
+- word limits
+- approximate page limits
+- link restrictions
+- anonymity expectations
+- venue notes
+
+### Drafting behavior
+
+ClawLab first tries a model-assisted draft through the current auto model router.
+
+If no live model connection is available, it falls back to a deterministic, evidence-aware template draft.
+
+That means the workflow is still runnable even without live model auth, but the draft quality will depend on what model access is actually configured.
+
+## Executable local skills
+
+Current built-ins:
+
+- `integration-doctor`
+- `review-concern-extract`
+- `venue-policy-check`
+- `repo-evidence-scan`
+- `rebuttal-plan`
+
+These are local and executable.
+
+They are intentionally separate from external references such as:
+
+- Paper2Rebuttal
+- ClawHub Research Library
+- ClawHub OpenReview Review Analyzer
+- ClawHub Code Auditor
+
+Those external projects are useful references, but ClawLab does not pretend they are bundled local skills.
+
+## Team note
+
+`/research team ...` currently provides:
+
+- role scaffolding
+- role memory templates
+- role switches
+- role-oriented playbook suggestions
+
+It does **not** mean the repository already embeds the full OMX durable team runtime.
+
+## Verification
+
+Use:
 
 ```bash
 bun run lint:clawlab
-bun run typecheck:clawlab
+bun run test:clawlab
+bun run check:clawlab
 ```
 
-## Artifacts
+Current verified status for this implementation work:
 
-Each session writes durable outputs under:
+- focused ClawLab tests pass
+- focused ClawLab lint passes with complexity warnings only
 
-```text
-workspace/sessions/<sessionId>/
-```
-
-Important directories:
-
-- `mission/`
-- `sources/`
-- `evidence/`
-- `branches/`
-- `patches/`
-- `runs/`
-- `results/`
-- `reports/`
-- `summaries/`
-- `memory/`
-- `remote/`
-
-Important files:
-
-- `mission/mission.md`
-- `mission/success_criteria.json`
-- `mission/budget.json`
-- `mission/improvement_brief.json`
-- `mission/safety_checklist.json`
-- `mission/model_connection.json`
-- `results/hypotheses.jsonl`
-- `results/patch_plan.json`
-- `results/validation_plan.json`
-- `results/execution_target.json`
-- `results/research_index.json`
-- `reports/research_index.md`
-
-## Round Report Format
-
-Each round report is a research round report with exactly 11 sections:
-
-1. objective
-2. research findings
-3. new evidence
-4. code changes
-5. experiments
-6. key results
-7. failures and fixes
-8. current best-so-far
-9. uncertainties
-10. next-round plan
-11. execution environment
-
-Execution environment includes:
-
-- local or remote
-- remote host if relevant
-- GPU allocation
-- environment name
-- working directory
-
-## Examples
-
-- New project example: [examples/new-project.json](./examples/new-project.json)
-- Existing project improvement example: [examples/improve-existing-project.json](./examples/improve-existing-project.json)
-
-## Notes on Prior Art
-
-ClawLab was shaped by recurring patterns seen in modern auto-research systems:
-
-- explicit staged loops
-- persistent artifact stores
-- reflection and replanning
-- execution discipline before long runs
-- remote execution as a normal path rather than an afterthought
+The repo-wide TypeScript baseline still contains many unrelated upstream issues, so treat focused tests and focused lint as the honest verification gate for now.

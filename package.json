@@ -15,13 +15,14 @@
     "build:watch": "bun scripts/build-bundle.ts --watch",
     "build:prod": "bun scripts/build-bundle.ts --minify",
     "typecheck": "tsc --noEmit",
-    "typecheck:clawlab": "tsc --noEmit -p tsconfig.clawlab.json",
+    "typecheck:clawlab": "node scripts/typecheck-clawlab.mjs",
     "lint": "biome check src/",
     "lint:clawlab": "biome check src/research src/commands/research",
+    "test:clawlab": "bun test src/research/core/integrations/detect.test.ts src/research/rebuttal/rebuttal.test.ts src/research/skills/registry.test.ts src/commands/research/commandHelp.test.ts",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/",
     "check": "biome check src/ && tsc --noEmit",
-    "check:clawlab": "biome check src/research src/commands/research && tsc --noEmit -p tsconfig.clawlab.json"
+    "check:clawlab": "biome check src/research src/commands/research && bun test src/research/core/integrations/detect.test.ts src/research/rebuttal/rebuttal.test.ts src/research/skills/registry.test.ts src/commands/research/commandHelp.test.ts"
   },
   "dependencies": {
     "@alcalzone/ansi-tokenize": "^0.3.0",

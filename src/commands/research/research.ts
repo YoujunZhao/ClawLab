@@ -4,6 +4,9 @@ import type { ToolUseContext } from '../../Tool.js'
 import { AutoResearchService, type ResearchMissionInput } from '../../research/index.js'
 import type { LocalCommandResult } from '../../types/command.js'
 import { getCwd } from '../../utils/cwd.js'
+import { runIntegrationCommand } from './integration.js'
+import { runRebuttalCommand } from './rebuttal.js'
+import { runSkillsCommand } from './skills.js'
 import { initializeTeamArtifacts, runTeamCommand } from './team.js'
 
 function tokenize(args: string): string[] {
@@ -103,7 +106,9 @@ const setupDirectories = [
 	'skills',
 	'.clawlab/tasks',
 	'.clawlab/docs',
+	'.clawlab/integrations',
 	'.clawlab/memory',
+	'.clawlab/rebuttal',
 	'.clawlab/team',
 	'.clawlab/skills',
 ]
@@ -324,6 +329,17 @@ function getSetupFiles(): Array<{ relativePath: string; content: string }> {
 			content: buildResearchBriefTemplate(),
 		},
 		{
+			relativePath: '.clawlab/integrations/README.md',
+			content: [
+				'# Native Integrations',
+				'',
+				'- Run `/research integration status` to inspect Codex / Claude Code / OpenClaw support.',
+				'- Run `/research integration init codex|claude-code|openclaw` to create project-local adapter files.',
+				'- Keep secrets in user-level config, not in this repository.',
+				'',
+			].join('\n'),
+		},
+		{
 			relativePath: '.clawlab/memory/project_truth.md',
 			content: [
 				'# Project Truth',
@@ -369,6 +385,28 @@ function getSetupFiles(): Array<{ relativePath: string; content: string }> {
 				'# Decision Log',
 				'',
 				'- Record rejected paths and reasoning to avoid repeats.',
+				'',
+			].join('\n'),
+		},
+		{
+			relativePath: '.clawlab/rebuttal/README.md',
+			content: [
+				'# Rebuttal Workspace',
+				'',
+				'1. Run `/research rebuttal init` if you want venue examples and workflow notes.',
+				'2. Run `/research rebuttal plan --paper <paper.pdf> --review <review.pdf|txt> [--review ...] --venue <venue> --repo <repo>`.',
+				'3. Run `/research rebuttal draft --run-dir <generated-run-dir>`.',
+				'4. Run `/research rebuttal validate --draft <draft.md> --venue <venue>`.',
+				'',
+			].join('\n'),
+		},
+		{
+			relativePath: '.clawlab/skills/README.md',
+			content: [
+				'# Executable Skills',
+				'',
+				'Use `/research skills list` to see the local executable skill catalog.',
+				'Use `/research skills run <skill-id> ...` to execute a real built-in skill.',
 				'',
 			].join('\n'),
 		},
@@ -594,6 +632,18 @@ export async function call(args: string, _context: ToolUseContext): Promise<Loca
 
 	if (subcommand === 'team') {
 		return runTeamCommand(cwd, tail)
+	}
+
+	if (subcommand === 'integration') {
+		return runIntegrationCommand(cwd, tail)
+	}
+
+	if (subcommand === 'rebuttal') {
+		return runRebuttalCommand(cwd, tail)
+	}
+
+	if (subcommand === 'skills') {
+		return runSkillsCommand(cwd, tail)
 	}
 
 	if (subcommand === 'start') {

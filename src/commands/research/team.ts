@@ -911,6 +911,7 @@ async function runTeamInit(cwd: string, tokens: string[]): Promise<LocalCommandR
 		`Team files written: ${stats.written}`,
 		`Team files skipped: ${stats.skipped}`,
 		'Roles available: conductor, literature_scout, experiment_driver, paper_writer, reviewer',
+		'Note: `/research team skills` lists role-oriented playbooks, not executable local skills.',
 	]
 	if (force) {
 		lines.push('Overwrite mode: enabled (--force)')
@@ -974,7 +975,7 @@ async function runTeamSkills(cwd: string, tokens: string[]): Promise<LocalComman
 	if (filtered.length === 0) {
 		return {
 			type: 'text',
-			value: 'No built-in skills matched the filter. Try /research team skills with fewer filters.',
+			value: 'No role playbooks matched the filter. Try /research team skills with fewer filters.',
 		}
 	}
 	const categoryCounts = new Map<string, number>()
@@ -987,10 +988,11 @@ async function runTeamSkills(cwd: string, tokens: string[]): Promise<LocalComman
 		.join(', ')
 
 	const lines = [
-		`Built-in skills: ${filtered.length}/${builtInSkills.length}`,
+		`Role playbooks: ${filtered.length}/${builtInSkills.length}`,
 		`Current stage from tasks: ${activeStage ?? 'unknown'}`,
 		`Filters: role=${query.role ?? 'any'}, stage=${query.stage ?? 'any'}, category=${query.category ?? 'any'}`,
 		`Category split: ${categorySummary}`,
+		'Executable local skills live under `/research skills ...`.',
 		'',
 	]
 	for (const skill of filtered) {
@@ -1046,8 +1048,9 @@ function runTeamHelp(): LocalCommandResult {
 			'- /research team init [--force]',
 			'- /research team status',
 			'- /research team roles',
-			'- /research team skills [role] [--stage <stage>] [--category <name>]',
+			'- /research team skills [role] [--stage <stage>] [--category <name>]  # role playbooks / recommendations',
 			'- /research team switch <role>',
+			'- /research skills list  # executable local skills',
 		].join('\n'),
 	}
 }

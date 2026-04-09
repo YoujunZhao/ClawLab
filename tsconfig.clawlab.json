@@ -1,5 +1,19 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["src/research/**/*.ts", "src/commands/research/**/*.ts"],
+  "files": [
+    "src/research/core/integrations/types.ts",
+    "src/research/core/integrations/templates.ts",
+    "src/research/core/integrations/detect.ts",
+    "src/research/core/integrations/index.ts",
+    "src/research/rebuttal/types.ts",
+    "src/research/rebuttal/venuePolicies.ts",
+    "src/research/rebuttal/io.ts",
+    "src/research/rebuttal/analysis.ts",
+    "src/research/rebuttal/repoEvidence.ts",
+    "src/research/rebuttal/index.ts",
+    "src/research/skills/types.ts",
+    "src/research/skills/registry.ts"
+  ],
+  "include": [],
   "exclude": ["node_modules", "dist"]
 }
